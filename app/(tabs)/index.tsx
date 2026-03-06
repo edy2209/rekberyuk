@@ -1,98 +1,387 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  RefreshControl,
+} from 'react-native';
+import { useAuth } from '@/contexts/auth-context';
+import { Redirect, router } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+const ADMIN_STATS = [
+  { label: 'Total Client', value: '156', icon: '👥', color: '#6366F1' },
+  { label: 'Hari Ini', value: '12', icon: '📊', color: '#F59E0B' },
+  { label: 'Pending', value: '5', icon: '⏳', color: '#EF4444' },
+  { label: 'Selesai', value: '847', icon: '✅', color: '#10B981' },
+];
 
-export default function HomeScreen() {
+const CLIENT_STATS = [
+  { label: 'Total Transaksi', value: '8', icon: '📦', color: '#6366F1' },
+  { label: 'Berjalan', value: '2', icon: '🔄', color: '#F59E0B' },
+  { label: 'Selesai', value: '6', icon: '✅', color: '#10B981' },
+  { label: 'Saldo', value: 'Rp 0', icon: '💰', color: '#8B5CF6' },
+];
+
+const RECENT_TRANSACTIONS = [
+  { id: '001', title: 'iPhone 15 Pro Max', amount: 'Rp 18.500.000', status: 'selesai', date: '2 jam lalu' },
+  { id: '002', title: 'MacBook Air M2', amount: 'Rp 15.000.000', status: 'proses', date: '5 jam lalu' },
+  { id: '003', title: 'PS5 Digital Edition', amount: 'Rp 6.500.000', status: 'pending', date: '1 hari lalu' },
+  { id: '004', title: 'Samsung S24 Ultra', amount: 'Rp 17.000.000', status: 'selesai', date: '2 hari lalu' },
+];
+
+const getStatusStyle = (status: string) => {
+  switch (status) {
+    case 'selesai':
+      return { bg: '#D1FAE5', text: '#065F46', label: 'Selesai' };
+    case 'proses':
+      return { bg: '#FEF3C7', text: '#92400E', label: 'Dalam Proses' };
+    case 'pending':
+      return { bg: '#FEE2E2', text: '#991B1B', label: 'Pending' };
+    default:
+      return { bg: '#E5E7EB', text: '#374151', label: status };
+  }
+};
+
+export default function DashboardScreen() {
+  const { user } = useAuth();
+  const [refreshing, setRefreshing] = React.useState(false);
+
+  if (!user) return <Redirect href="/login" />;
+
+  const stats = user.role === 'admin' ? ADMIN_STATS : CLIENT_STATS;
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    setTimeout(() => setRefreshing(false), 1000);
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <SafeAreaView style={styles.container}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6366F1" />
+        }
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Text style={styles.greeting}>Halo, {user.displayName}! 👋</Text>
+            <View style={styles.roleBadge}>
+              <Text style={styles.roleText}>
+                {user.role === 'admin' ? '🛡️ Administrator' : '👤 Client'}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.avatarContainer}>
+            <Text style={styles.avatarText}>{user.avatar}</Text>
+          </View>
+        </View>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+        {/* Stats Grid */}
+        <View style={styles.statsGrid}>
+          {stats.map((stat, idx) => (
+            <View key={idx} style={styles.statCard}>
+              <Text style={styles.statIcon}>{stat.icon}</Text>
+              <Text style={[styles.statValue, { color: stat.color }]}>{stat.value}</Text>
+              <Text style={styles.statLabel}>{stat.label}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Quick Actions */}
+        {user.role === 'client' && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Aksi Cepat</Text>
+            <View style={styles.quickActions}>
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={() => router.push('/add-group')}
+              >
+                <View style={[styles.actionIconBg, { backgroundColor: '#EDE9FE' }]}>
+                  <Text style={styles.actionIcon}>➕</Text>
+                </View>
+                <Text style={styles.actionText}>Buat{'\n'}Transaksi</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={() => router.push('/(tabs)/explore')}
+              >
+                <View style={[styles.actionIconBg, { backgroundColor: '#DBEAFE' }]}>
+                  <Text style={styles.actionIcon}>💬</Text>
+                </View>
+                <Text style={styles.actionText}>Chat{'\n'}Admin</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.actionButton}>
+                <View style={[styles.actionIconBg, { backgroundColor: '#D1FAE5' }]}>
+                  <Text style={styles.actionIcon}>📋</Text>
+                </View>
+                <Text style={styles.actionText}>Riwayat{'\n'}Transaksi</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.actionButton}>
+                <View style={[styles.actionIconBg, { backgroundColor: '#FEF3C7' }]}>
+                  <Text style={styles.actionIcon}>❓</Text>
+                </View>
+                <Text style={styles.actionText}>Bantuan</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Admin Quick Actions */}
+        {user.role === 'admin' && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Aksi Cepat</Text>
+            <View style={styles.quickActions}>
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={() => router.push('/(tabs)/explore')}
+              >
+                <View style={[styles.actionIconBg, { backgroundColor: '#DBEAFE' }]}>
+                  <Text style={styles.actionIcon}>💬</Text>
+                </View>
+                <Text style={styles.actionText}>Chat{'\n'}Client</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.actionButton}>
+                <View style={[styles.actionIconBg, { backgroundColor: '#FEE2E2' }]}>
+                  <Text style={styles.actionIcon}>⚠️</Text>
+                </View>
+                <Text style={styles.actionText}>Pending{'\n'}Review</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.actionButton}>
+                <View style={[styles.actionIconBg, { backgroundColor: '#D1FAE5' }]}>
+                  <Text style={styles.actionIcon}>💸</Text>
+                </View>
+                <Text style={styles.actionText}>Cairkan{'\n'}Dana</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.actionButton}>
+                <View style={[styles.actionIconBg, { backgroundColor: '#FEF3C7' }]}>
+                  <Text style={styles.actionIcon}>📊</Text>
+                </View>
+                <Text style={styles.actionText}>Laporan</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Recent Transactions */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Transaksi Terbaru</Text>
+            <TouchableOpacity>
+              <Text style={styles.seeAllText}>Lihat Semua</Text>
+            </TouchableOpacity>
+          </View>
+          {RECENT_TRANSACTIONS.map((tx) => {
+            const statusStyle = getStatusStyle(tx.status);
+            return (
+              <TouchableOpacity key={tx.id} style={styles.transactionCard} activeOpacity={0.7}>
+                <View style={styles.txIconContainer}>
+                  <Text style={styles.txIcon}>📦</Text>
+                </View>
+                <View style={styles.txInfo}>
+                  <Text style={styles.txTitle}>{tx.title}</Text>
+                  <Text style={styles.txAmount}>{tx.amount}</Text>
+                  <Text style={styles.txDate}>{tx.date}</Text>
+                </View>
+                <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
+                  <Text style={[styles.statusText, { color: statusStyle.text }]}>
+                    {statusStyle.label}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <View style={{ height: 30 }} />
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
   },
-  stepContainer: {
-    gap: 8,
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  headerLeft: {
+    flex: 1,
+  },
+  greeting: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginBottom: 6,
+  },
+  roleBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#EDE9FE',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  roleText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6366F1',
+  },
+  avatarContainer: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#E0E7FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#6366F1',
+  },
+  avatarText: {
+    fontSize: 26,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 14,
+    paddingTop: 16,
+    gap: 10,
+  },
+  statCard: {
+    width: '47%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+    flexGrow: 1,
+  },
+  statIcon: {
+    fontSize: 28,
     marginBottom: 8,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  statValue: {
+    fontSize: 24,
+    fontWeight: '800',
+  },
+  statLabel: {
+    fontSize: 13,
+    color: '#64748B',
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  section: {
+    paddingHorizontal: 20,
+    marginTop: 24,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginBottom: 14,
+  },
+  seeAllText: {
+    fontSize: 14,
+    color: '#6366F1',
+    fontWeight: '600',
+    marginBottom: 14,
+  },
+  quickActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  actionButton: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  actionIconBg: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  actionIcon: {
+    fontSize: 26,
+  },
+  actionText: {
+    fontSize: 12,
+    color: '#475569',
+    fontWeight: '600',
+    textAlign: 'center',
+    lineHeight: 16,
+  },
+  transactionCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  txIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+  txIcon: {
+    fontSize: 22,
+  },
+  txInfo: {
+    flex: 1,
+  },
+  txTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1E293B',
+  },
+  txAmount: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#6366F1',
+    marginTop: 2,
+  },
+  txDate: {
+    fontSize: 12,
+    color: '#94A3B8',
+    marginTop: 2,
+  },
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
 });
