@@ -1,17 +1,17 @@
+import { useAuth } from '@/contexts/auth-context';
+import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
   Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { router } from 'expo-router';
-import { useAuth } from '@/contexts/auth-context';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function AddGroupScreen() {
@@ -20,6 +20,8 @@ export default function AddGroupScreen() {
   const [itemName, setItemName] = useState('');
   const [itemPrice, setItemPrice] = useState('');
   const [description, setDescription] = useState('');
+  const [creatorRole, setCreatorRole] = useState<'buyer' | 'seller'>('buyer');
+  const [loading, setLoading] = useState(false);
 
   const handleCreate = () => {
     if (!userId.trim()) {
@@ -92,7 +94,7 @@ export default function AddGroupScreen() {
                   autoCorrect={false}
                 />
               </View>
-              <Text style={styles.inputHint}>Contoh: bob_seller, dave_seller</Text>
+              <Text style={styles.inputHint}>Masukkan User ID (MongoDB _id) lawan transaksi</Text>
             </View>
 
             <View style={styles.inputGroup}>
@@ -143,14 +145,20 @@ export default function AddGroupScreen() {
           <View style={styles.roleInfo}>
             <Text style={styles.roleInfoTitle}>Anda bertransaksi sebagai:</Text>
             <View style={styles.roleOptions}>
-              <View style={[styles.roleChip, styles.roleChipActive]}>
-                <Text style={styles.roleChipIcon}>🛒</Text>
-                <Text style={styles.roleChipTextActive}>Buyer</Text>
-              </View>
-              <View style={styles.roleChip}>
-                <Text style={styles.roleChipIcon}>🏪</Text>
-                <Text style={styles.roleChipText}>Seller</Text>
-              </View>
+              <TouchableOpacity
+                style={[styles.roleChip, creatorRole === 'buyer' && styles.roleChipActive]}
+                onPress={() => setCreatorRole('buyer')}
+              >
+                <Text style={styles.roleChipIcon}>\uD83D\uDED2</Text>
+                <Text style={creatorRole === 'buyer' ? styles.roleChipTextActive : styles.roleChipText}>Buyer</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.roleChip, creatorRole === 'seller' && styles.roleChipActive]}
+                onPress={() => setCreatorRole('seller')}
+              >
+                <Text style={styles.roleChipIcon}>\uD83C\uDFEA</Text>
+                <Text style={creatorRole === 'seller' ? styles.roleChipTextActive : styles.roleChipText}>Seller</Text>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -181,11 +189,12 @@ export default function AddGroupScreen() {
 
           {/* Create Button */}
           <TouchableOpacity
-            style={styles.createButton}
+            style={[styles.createButton, loading && { opacity: 0.7 }]}
             onPress={handleCreate}
             activeOpacity={0.8}
+            disabled={loading}
           >
-            <Text style={styles.createButtonText}>🤝 Buat Grup Rekber</Text>
+            <Text style={styles.createButtonText}>{loading ? 'Membuat...' : '\uD83E\uDD1D Buat Grup Rekber'}</Text>
           </TouchableOpacity>
 
           <View style={{ height: 40 }} />

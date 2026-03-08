@@ -1,7 +1,10 @@
 import { useAuth } from '@/contexts/auth-context';
-import { Redirect, router } from 'expo-router';
-import React from 'react';
+import { groupApi, type Group } from '@/services/api';
+import { Redirect, router, useFocusEffect } from 'expo-router';
+import React, { useCallback, useState } from 'react';
 import {
+  ActivityIndicator,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,108 +13,70 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const ADMIN_CHATS = [
-  {
-    id: 'grp-001',
-    name: 'iPhone 15 Pro Max',
-    members: ['alex_buyer', 'bob_seller'],
-    lastMessage: 'Barang sudah diterima, kondisi oke!',
-    lastSender: 'alex_buyer',
-    time: '10:32',
-    unread: 2,
-    status: 'active',
-    amount: 'Rp 18.5jt',
-  },
-  {
-    id: 'grp-002',
-    name: 'MacBook Air M2',
-    members: ['carol_buyer', 'dave_seller'],
-    lastMessage: 'Sudah transfer min',
-    lastSender: 'carol_buyer',
-    time: '09:15',
-    unread: 5,
-    status: 'active',
-    amount: 'Rp 15jt',
-  },
-  {
-    id: 'grp-003',
-    name: 'PS5 Digital Edition',
-    members: ['eve_buyer', 'frank_seller'],
-    lastMessage: 'Halo min, mau rekber dong',
-    lastSender: 'eve_buyer',
-    time: 'Kemarin',
-    unread: 1,
-    status: 'pending',
-    amount: 'Rp 6.5jt',
-  },
-  {
-    id: 'grp-004',
-    name: 'Samsung S24 Ultra',
-    members: ['grace_buyer', 'hank_seller'],
-    lastMessage: 'Transaksi selesai! Dana diteruskan ke seller 🙏',
-    lastSender: 'Admin',
-    time: '2 hari lalu',
-    unread: 0,
-    status: 'done',
-    amount: 'Rp 17jt',
-  },
-];
-
-const CLIENT_CHATS = [
-  {
-    id: 'grp-001',
-    name: 'iPhone 15 Pro Max',
-    members: ['Anda', 'bob_seller', 'Admin'],
-    lastMessage: 'Dana sudah diterima ✅ Seller, silakan kirim barangnya',
-    lastSender: 'Admin',
-    time: '10:32',
-    unread: 1,
-    status: 'active',
-    amount: 'Rp 18.5jt',
-  },
-  {
-    id: 'grp-002',
-    name: 'MacBook Air M2',
-    members: ['Anda', 'dave_seller', 'Admin'],
-    lastMessage: 'Baik, silakan buyer transfer ke rekening rekber ya',
-    lastSender: 'Admin',
-    time: '09:15',
-    unread: 3,
-    status: 'active',
-    amount: 'Rp 15jt',
-  },
-  {
-    id: 'grp-005',
-    name: 'Nintendo Switch OLED',
-    members: ['Anda', 'ian_seller', 'Admin'],
-    lastMessage: 'Transaksi selesai! Terima kasih sudah menggunakan RekberYuk 🙏',
-    lastSender: 'Admin',
-    time: '3 hari lalu',
-    unread: 0,
-    status: 'done',
-    amount: 'Rp 4.2jt',
-  },
-];
-
 const getStatusColor = (status: string) => {
   switch (status) {
-    case 'active':
+    case 'paid':
+    case 'shipped':
       return '#10B981';
     case 'pending':
       return '#F59E0B';
     case 'done':
+    case 'cancelled':
       return '#94A3B8';
     default:
       return '#94A3B8';
   }
 };
 
+const formatPrice = (price: number) => {
+  if (price >= 1_000_000) return `Rp ${(price / 1_000_000).toFixed(1)}jt`;
+  if (price >= 1_000) return `Rp ${(price / 1_000).toFixed(0)}rb`;
+  return `Rp ${price}`;
+};
+
+const formatTime = (dateStr: string) => {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays === 0) {
+    return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+  }
+  if (diffDays === 1) return 'Kemarin';
+  if (diffDays < 7) return `${diffDays} hari lalu`;
+  return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+};
+
 export default function ChatListScreen() {
   const { user } = useAuth();
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   if (!user) return <Redirect href="/login" />;
 
-  const chats = user.role === 'admin' ? ADMIN_CHATS : CLIENT_CHATS;
+  const fetchGroups = async () => {
+    try {
+      const data = await groupApi.list();
+      setGroups(data);
+    } catch {
+      // silent fail
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchGroups();
+    }, [])
+  );
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchGroups();
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -138,57 +103,80 @@ export default function ChatListScreen() {
         </Text>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {chats.map((chat) => (
-          <TouchableOpacity
-            key={chat.id}
-            style={styles.chatItem}
-            activeOpacity={0.7}
-            onPress={() =>
-              router.push({
-                pathname: '/chat/[id]',
-                params: { id: chat.id, name: chat.name },
-              })
-            }
-          >
-            {/* Chat Avatar */}
-            <View style={styles.chatAvatar}>
-              <Text style={styles.chatAvatarText}>👥</Text>
-              <View
-                style={[styles.statusDot, { backgroundColor: getStatusColor(chat.status) }]}
-              />
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#6366F1" />
+        </View>
+      ) : (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6366F1" />
+          }
+        >
+          {groups.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyIcon}>📭</Text>
+              <Text style={styles.emptyText}>Belum ada grup rekber</Text>
+              {user.role === 'user' && (
+                <TouchableOpacity
+                  style={styles.emptyButton}
+                  onPress={() => router.push('/add-group')}
+                >
+                  <Text style={styles.emptyButtonText}>Buat Transaksi Pertama</Text>
+                </TouchableOpacity>
+              )}
             </View>
+          ) : (
+            groups.map((group) => (
+              <TouchableOpacity
+                key={group._id}
+                style={styles.chatItem}
+                activeOpacity={0.7}
+                onPress={() =>
+                  router.push({
+                    pathname: '/chat/[id]',
+                    params: { id: group._id, name: group.itemName },
+                  })
+                }
+              >
+                <View style={styles.chatAvatar}>
+                  <Text style={styles.chatAvatarText}>👥</Text>
+                  <View
+                    style={[styles.statusDot, { backgroundColor: getStatusColor(group.status) }]}
+                  />
+                </View>
 
-            {/* Chat Info */}
-            <View style={styles.chatInfo}>
-              <View style={styles.chatTopRow}>
-                <Text style={styles.chatName} numberOfLines={1}>
-                  {chat.name}
-                </Text>
-                <Text style={styles.chatTime}>{chat.time}</Text>
-              </View>
-              <View style={styles.chatMiddleRow}>
-                <Text style={styles.chatAmount}>{chat.amount}</Text>
-                <Text style={styles.chatMembers}>
-                  {chat.members.length} anggota
-                </Text>
-              </View>
-              <View style={styles.chatBottomRow}>
-                <Text style={styles.chatLastMessage} numberOfLines={1}>
-                  <Text style={styles.chatSender}>{chat.lastSender}: </Text>
-                  {chat.lastMessage}
-                </Text>
-                {chat.unread > 0 && (
-                  <View style={styles.unreadBadge}>
-                    <Text style={styles.unreadText}>{chat.unread}</Text>
+                <View style={styles.chatInfo}>
+                  <View style={styles.chatTopRow}>
+                    <Text style={styles.chatName} numberOfLines={1}>
+                      {group.itemName}
+                    </Text>
+                    <Text style={styles.chatTime}>{formatTime(group.updatedAt)}</Text>
                   </View>
-                )}
-              </View>
-            </View>
-          </TouchableOpacity>
-        ))}
-        <View style={{ height: 30 }} />
-      </ScrollView>
+                  <View style={styles.chatMiddleRow}>
+                    <Text style={styles.chatAmount}>{formatPrice(group.itemPrice)}</Text>
+                    <Text style={styles.chatMembers}>
+                      {group.members.length} anggota
+                    </Text>
+                    <View style={[styles.statusChip, { backgroundColor: getStatusColor(group.status) + '20' }]}>
+                      <Text style={[styles.statusChipText, { color: getStatusColor(group.status) }]}>
+                        {group.status}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.chatBottomRow}>
+                    <Text style={styles.chatLastMessage} numberOfLines={1}>
+                      {group.members.map((m) => m.user.displayName).join(', ')}
+                    </Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            ))
+          )}
+          <View style={{ height: 30 }} />
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -250,6 +238,48 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 60,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    paddingTop: 80,
+    paddingHorizontal: 40,
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#94A3B8',
+    fontWeight: '600',
+    marginBottom: 20,
+  },
+  emptyButton: {
+    backgroundColor: '#6366F1',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 14,
+  },
+  emptyButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  statusChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  statusChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'capitalize',
   },
   chatAvatar: {
     width: 52,

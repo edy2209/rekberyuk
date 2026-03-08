@@ -1,29 +1,22 @@
-import React, { useState, useRef } from 'react';
+import { useAuth } from '@/contexts/auth-context';
+import { groupApi, type Group, type MessageItem } from '@/services/api';
+import * as Clipboard from 'expo-clipboard';
+import { router, useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  View,
-  Text,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
   StyleSheet,
+  Text,
   TextInput,
   TouchableOpacity,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  Modal,
-  Alert,
+  View,
 } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
-import { useAuth } from '@/contexts/auth-context';
-import { useLocalSearchParams, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-interface Message {
-  id: string;
-  sender: string;
-  senderRole: 'admin' | 'buyer' | 'seller';
-  text: string;
-  time: string;
-  isMe: boolean;
-}
 
 // === DUMMY BANK ACCOUNTS (nanti dari database) ===
 const BANK_ACCOUNTS = [
@@ -55,35 +48,10 @@ const CLIENT_QUICK_REPLIES = [
   'Oke min, siap!',
 ];
 
-const DUMMY_MESSAGES: Record<string, Message[]> = {
-  'grp-001': [
-    { id: '1', sender: 'Admin', senderRole: 'admin', text: 'Halo kak, selamat datang di grup rekber untuk transaksi iPhone 15 Pro Max! 👋 Saya admin yang akan membantu transaksi kalian.', time: '09:00', isMe: false },
-    { id: '2', sender: 'alex_buyer', senderRole: 'buyer', text: 'Halo min, saya mau beli iPhone 15 Pro Max dari bob_seller', time: '09:02', isMe: false },
-    { id: '3', sender: 'bob_seller', senderRole: 'seller', text: 'Baik min, barangnya ready. iPhone 15 Pro Max 256GB Natural Titanium', time: '09:05', isMe: false },
-    { id: '4', sender: 'Admin', senderRole: 'admin', text: 'Baik, detail transaksi:\n\n📦 iPhone 15 Pro Max 256GB\n💰 Harga: Rp 18.500.000\n🏦 Fee rekber: Rp 185.000\n\nSilakan buyer transfer total Rp 18.685.000 ke rekening rekber ya.', time: '09:10', isMe: false },
-    { id: '5', sender: 'alex_buyer', senderRole: 'buyer', text: 'Sudah transfer min ✅', time: '09:45', isMe: false },
-    { id: '6', sender: 'Admin', senderRole: 'admin', text: 'Dana sudah diterima ✅\n\nSeller @bob_seller, silakan kirim barangnya ya. Jangan lupa share resi pengirimannya di sini.', time: '10:00', isMe: false },
-    { id: '7', sender: 'bob_seller', senderRole: 'seller', text: 'Baik min, sudah dikirim via JNE YES. Resi: JNE1234567890', time: '10:30', isMe: false },
-    { id: '8', sender: 'Admin', senderRole: 'admin', text: 'Buyer @alex_buyer, barang sudah dikirim ya 📦\nResi: JNE1234567890\n\nMohon konfirmasi jika sudah diterima dan kondisi oke!', time: '10:32', isMe: false },
-    { id: '9', sender: 'alex_buyer', senderRole: 'buyer', text: 'Barang sudah diterima, kondisi oke! 👍', time: '14:00', isMe: false },
-  ],
-  'grp-002': [
-    { id: '1', sender: 'Admin', senderRole: 'admin', text: 'Halo! Grup rekber untuk transaksi MacBook Air M2 sudah dibuat 🎉', time: '08:00', isMe: false },
-    { id: '2', sender: 'carol_buyer', senderRole: 'buyer', text: 'Halo min, saya mau beli MacBook Air M2 dari dave_seller', time: '08:05', isMe: false },
-    { id: '3', sender: 'dave_seller', senderRole: 'seller', text: 'Ready min, MacBook Air M2 15" Midnight 256GB', time: '08:10', isMe: false },
-    { id: '4', sender: 'Admin', senderRole: 'admin', text: 'Baik, silakan buyer transfer ke rekening rekber ya. Total Rp 15.150.000 (sudah termasuk fee)', time: '08:15', isMe: false },
-    { id: '5', sender: 'carol_buyer', senderRole: 'buyer', text: 'Sudah transfer min ✅', time: '09:15', isMe: false },
-  ],
-  'grp-003': [
-    { id: '1', sender: 'Admin', senderRole: 'admin', text: 'Grup rekber PS5 Digital Edition 🎮', time: '14:00', isMe: false },
-    { id: '2', sender: 'eve_buyer', senderRole: 'buyer', text: 'Halo min, mau rekber dong 👋', time: '14:05', isMe: false },
-  ],
-  'grp-004': [
-    { id: '1', sender: 'Admin', senderRole: 'admin', text: 'Transaksi Samsung S24 Ultra selesai! Dana sudah diteruskan ke seller 🙏', time: '16:00', isMe: false },
-  ],
-  'grp-005': [
-    { id: '1', sender: 'Admin', senderRole: 'admin', text: 'Grup rekber Nintendo Switch OLED 🎮\nTransaksi selesai! Terima kasih sudah menggunakan RekberYuk 🙏', time: '12:00', isMe: false },
-  ],
+const getMemberRole = (group: Group | null, senderId: string): string => {
+  if (!group) return 'buyer';
+  const member = group.members.find((m) => m.user._id === senderId);
+  return member?.role || 'buyer';
 };
 
 const getSenderColor = (role: string) => {
@@ -112,6 +80,11 @@ const getSenderBg = (role: string) => {
   }
 };
 
+const formatTime = (dateStr: string) => {
+  const date = new Date(dateStr);
+  return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+};
+
 export default function ChatDetailScreen() {
   const { user } = useAuth();
   const { id, name } = useLocalSearchParams<{ id: string; name: string }>();
@@ -120,44 +93,69 @@ export default function ChatDetailScreen() {
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [showBankModal, setShowBankModal] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<MessageItem[]>([]);
+  const [group, setGroup] = useState<Group | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
 
-  const chatId = id || 'grp-001';
+  const chatId = id || '';
   const chatName = name || 'Chat';
-
-  const initialMessages = DUMMY_MESSAGES[chatId] || DUMMY_MESSAGES['grp-001'];
-
-  const [messages, setMessages] = useState<Message[]>(() =>
-    initialMessages.map((msg) => ({
-      ...msg,
-      isMe:
-        user?.role === 'admin'
-          ? msg.senderRole === 'admin'
-          : msg.senderRole === 'buyer',
-    }))
-  );
 
   const quickReplies =
     user?.role === 'admin' ? ADMIN_QUICK_REPLIES : CLIENT_QUICK_REPLIES;
 
-  const sendMessage = (text: string) => {
-    if (!text.trim()) return;
-    const newMsg: Message = {
-      id: String(Date.now()),
-      sender: user?.displayName || 'Anda',
-      senderRole: user?.role === 'admin' ? 'admin' : 'buyer',
-      text: text.trim(),
-      time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
-      isMe: true,
+  // Fetch group detail + messages
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [groupData, msgData] = await Promise.all([
+          groupApi.detail(chatId),
+          groupApi.getMessages(chatId),
+        ]);
+        setGroup(groupData);
+        setMessages(msgData.messages);
+      } catch (err: any) {
+        Alert.alert('Error', err.message || 'Gagal memuat chat');
+      } finally {
+        setLoading(false);
+      }
     };
-    setMessages((prev) => [...prev, newMsg]);
-    setInputText('');
-    setShowQuickReplies(false);
-    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+    if (chatId) fetchData();
+  }, [chatId]);
+
+  // Poll for new messages every 5s
+  useEffect(() => {
+    if (!chatId) return;
+    const interval = setInterval(async () => {
+      try {
+        const msgData = await groupApi.getMessages(chatId);
+        setMessages(msgData.messages);
+      } catch {
+        // silent
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [chatId]);
+
+  const sendMessage = async (text: string) => {
+    if (!text.trim() || sending) return;
+    setSending(true);
+    try {
+      const newMsg = await groupApi.sendMessage(chatId, text.trim());
+      setMessages((prev) => [...prev, newMsg]);
+      setInputText('');
+      setShowQuickReplies(false);
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+    } catch (err: any) {
+      Alert.alert('Gagal', err.message || 'Pesan gagal dikirim');
+    } finally {
+      setSending(false);
+    }
   };
 
-  const copyToClipboard = async (text: string, id: string) => {
+  const copyToClipboard = async (text: string, bankId: string) => {
     await Clipboard.setStringAsync(text);
-    setCopiedId(id);
+    setCopiedId(bankId);
     setTimeout(() => setCopiedId(null), 2000);
   };
 
@@ -171,6 +169,24 @@ export default function ChatDetailScreen() {
     sendMessage(text);
     setShowBankModal(false);
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <Text style={styles.backText}>‹</Text>
+          </TouchableOpacity>
+          <View style={styles.headerInfo}>
+            <Text style={styles.headerTitle}>{chatName}</Text>
+          </View>
+        </View>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color="#6366F1" />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -279,39 +295,43 @@ export default function ChatDetailScreen() {
             </Text>
           </View>
 
-          {messages.map((msg) => (
-            <View
-              key={msg.id}
-              style={[
-                styles.messageRow,
-                msg.isMe ? styles.messageRowRight : styles.messageRowLeft,
-              ]}
-            >
-              {!msg.isMe && (
-                <View style={[styles.senderDot, { backgroundColor: getSenderColor(msg.senderRole) }]} />
-              )}
+          {messages.map((msg) => {
+            const isMe = msg.sender._id === user?.id;
+            const senderRole = getMemberRole(group, msg.sender._id);
+            return (
               <View
+                key={msg._id}
                 style={[
-                  styles.messageBubble,
-                  msg.isMe
-                    ? styles.bubbleRight
-                    : [styles.bubbleLeft, { backgroundColor: getSenderBg(msg.senderRole) }],
+                  styles.messageRow,
+                  isMe ? styles.messageRowRight : styles.messageRowLeft,
                 ]}
               >
-                {!msg.isMe && (
-                  <Text style={[styles.senderName, { color: getSenderColor(msg.senderRole) }]}>
-                    {msg.sender}
-                  </Text>
+                {!isMe && (
+                  <View style={[styles.senderDot, { backgroundColor: getSenderColor(senderRole) }]} />
                 )}
-                <Text style={[styles.messageText, msg.isMe && styles.messageTextRight]}>
-                  {msg.text}
-                </Text>
-                <Text style={[styles.messageTime, msg.isMe && styles.messageTimeRight]}>
-                  {msg.time}
-                </Text>
+                <View
+                  style={[
+                    styles.messageBubble,
+                    isMe
+                      ? styles.bubbleRight
+                      : [styles.bubbleLeft, { backgroundColor: getSenderBg(senderRole) }],
+                  ]}
+                >
+                  {!isMe && (
+                    <Text style={[styles.senderName, { color: getSenderColor(senderRole) }]}>
+                      {msg.sender.displayName || msg.sender.username}
+                    </Text>
+                  )}
+                  <Text style={[styles.messageText, isMe && styles.messageTextRight]}>
+                    {msg.text}
+                  </Text>
+                  <Text style={[styles.messageTime, isMe && styles.messageTimeRight]}>
+                    {formatTime(msg.createdAt)}
+                  </Text>
+                </View>
               </View>
-            </View>
-          ))}
+            );
+          })}
         </ScrollView>
 
         {/* Quick Reply Section */}
@@ -367,11 +387,11 @@ export default function ChatDetailScreen() {
             multiline
           />
           <TouchableOpacity
-            style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]}
+            style={[styles.sendButton, (!inputText.trim() || sending) && styles.sendButtonDisabled]}
             onPress={() => sendMessage(inputText)}
-            disabled={!inputText.trim()}
+            disabled={!inputText.trim() || sending}
           >
-            <Text style={styles.sendButtonText}>➤</Text>
+            <Text style={styles.sendButtonText}>{sending ? '…' : '➤'}</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>

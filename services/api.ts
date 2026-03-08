@@ -108,3 +108,107 @@ export const authApi = {
     });
   },
 };
+
+// ============ GROUP API ============
+
+export interface GroupMember {
+  user: {
+    _id: string;
+    username: string;
+    displayName: string;
+    avatar: string | null;
+    role: string;
+  };
+  role: 'buyer' | 'seller' | 'admin';
+}
+
+export interface Group {
+  _id: string;
+  itemName: string;
+  itemPrice: number;
+  fee: number;
+  description?: string;
+  status: string;
+  createdBy: { _id: string; username: string; displayName: string };
+  members: GroupMember[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MessageItem {
+  _id: string;
+  group: string;
+  sender: {
+    _id: string;
+    username: string;
+    displayName: string;
+    avatar: string | null;
+    role: string;
+  };
+  text: string;
+  createdAt: string;
+}
+
+export interface MessagesResponse {
+  messages: MessageItem[];
+  hasMore: boolean;
+  total: number;
+  page: number;
+}
+
+export const groupApi = {
+  create(data: {
+    partnerUsername: string;
+    itemName: string;
+    itemPrice: number;
+    description?: string;
+    creatorRole: 'buyer' | 'seller';
+  }) {
+    return request<Group>('/groups', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  list() {
+    return request<Group[]>('/groups', { method: 'GET' });
+  },
+
+  detail(id: string) {
+    return request<Group>(`/groups/${id}`, { method: 'GET' });
+  },
+
+  addMember(groupId: string, userId: string, role: 'buyer' | 'seller') {
+    return request<Group>(`/groups/${groupId}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ userId, role }),
+    });
+  },
+
+  removeMember(groupId: string, userId: string) {
+    return request<Group>(`/groups/${groupId}/members/${userId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  updateStatus(groupId: string, status: string) {
+    return request<Group>(`/groups/${groupId}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    });
+  },
+
+  getMessages(groupId: string, page = 1, limit = 50) {
+    return request<MessagesResponse>(
+      `/groups/${groupId}/messages?page=${page}&limit=${limit}`,
+      { method: 'GET' }
+    );
+  },
+
+  sendMessage(groupId: string, text: string) {
+    return request<MessageItem>(`/groups/${groupId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    });
+  },
+};

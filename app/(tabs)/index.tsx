@@ -1,13 +1,15 @@
 import { useAuth } from '@/contexts/auth-context';
+import * as Clipboard from 'expo-clipboard';
 import { Redirect, router } from 'expo-router';
 import React from 'react';
 import {
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -70,6 +72,17 @@ export default function DashboardScreen() {
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Text style={styles.greeting}>Halo, {user.displayName}! 👋</Text>
+            <TouchableOpacity
+              style={styles.idRow}
+              onPress={async () => {
+                await Clipboard.setStringAsync(user.id);
+                Alert.alert('Tersalin!', 'ID kamu berhasil disalin');
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.idText}>ID: {user.id}</Text>
+              <Text style={styles.idCopy}>📋</Text>
+            </TouchableOpacity>
             <View style={styles.roleBadge}>
               <Text style={styles.roleText}>
                 {user.role === 'admin' ? '🛡️ Administrator' : '👤 Client'}
@@ -223,7 +236,27 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700',
     color: '#1E293B',
+    marginBottom: 4,
+  },
+  idRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
     marginBottom: 6,
+    gap: 6,
+  },
+  idText: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
+    fontFamily: 'monospace',
+  },
+  idCopy: {
+    fontSize: 12,
   },
   roleBadge: {
     alignSelf: 'flex-start',

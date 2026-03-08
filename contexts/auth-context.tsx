@@ -74,16 +74,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = async (username: string, password: string, displayName: string) => {
     try {
-      const res = await authApi.register(username, password, displayName);
-      await setToken(res.token);
-      setUser({
-        id: res.id,
-        username: res.username,
-        role: res.role as UserRole,
-        displayName: res.displayName,
-        avatar: res.avatar,
-      });
-      return { success: true, message: 'Registrasi berhasil!' };
+      await authApi.register(username, password, displayName);
+      return { success: true, message: 'Registrasi berhasil! Silakan login.' };
     } catch (err: any) {
       return { success: false, message: err.message || 'Registrasi gagal' };
     }

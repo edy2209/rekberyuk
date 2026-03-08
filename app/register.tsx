@@ -3,16 +3,16 @@ import { Redirect, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
 import {
-    Alert,
-    Dimensions,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  Dimensions,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 const { width } = Dimensions.get('window');
@@ -60,7 +60,9 @@ export default function RegisterScreen() {
     setLoading(false);
 
     if (result.success) {
-      router.replace('/(tabs)');
+      Alert.alert('Berhasil! 🎉', result.message, [
+        { text: 'Login Sekarang', onPress: () => router.replace('/login') },
+      ]);
     } else {
       Alert.alert('Registrasi Gagal', result.message);
     }
