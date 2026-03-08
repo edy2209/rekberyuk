@@ -1,14 +1,14 @@
-import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  RefreshControl,
-} from 'react-native';
 import { useAuth } from '@/contexts/auth-context';
 import { Redirect, router } from 'expo-router';
+import React from 'react';
+import {
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const ADMIN_STATS = [
@@ -93,7 +93,7 @@ export default function DashboardScreen() {
         </View>
 
         {/* Quick Actions */}
-        {user.role === 'client' && (
+        {user.role === 'user' && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Aksi Cepat</Text>
             <View style={styles.quickActions}>

@@ -1,8 +1,10 @@
-import React, { createContext, useContext, useState, type ReactNode } from 'react';
+import { authApi, getToken, removeToken, setToken } from '@/services/api';
+import React, { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
-export type UserRole = 'admin' | 'client';
+export type UserRole = 'admin' | 'user';
 
 export interface User {
+  id: string;
   username: string;
   role: UserRole;
   displayName: string;
@@ -11,48 +13,95 @@ export interface User {
 
 interface AuthContextType {
   user: User | null;
-  login: (username: string, password: string) => { success: boolean; message: string };
-  logout: () => void;
+  loading: boolean;
+  login: (username: string, password: string) => Promise<{ success: boolean; message: string }>;
+  register: (username: string, password: string, displayName: string) => Promise<{ success: boolean; message: string }>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  login: () => ({ success: false, message: '' }),
-  logout: () => {},
+  loading: true,
+  login: async () => ({ success: false, message: '' }),
+  register: async () => ({ success: false, message: '' }),
+  logout: async () => {},
 });
-
-const DUMMY_USERS: Array<{
-  username: string;
-  password: string;
-  role: UserRole;
-  displayName: string;
-  avatar: string;
-}> = [
-  { username: 'user123', password: 'user123', role: 'client', displayName: 'Budi Santoso', avatar: '👤' },
-  { username: 'admin123', password: 'admin123', role: 'admin', displayName: 'Admin RekberYuk', avatar: '🛡️' },
-];
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const login = (username: string, password: string) => {
-    const found = DUMMY_USERS.find((u) => u.username === username && u.password === password);
-    if (found) {
+  // Cek token saat app dibuka → auto login
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const token = await getToken();
+        if (token) {
+          const me = await authApi.me();
+          setUser({
+            id: me.id,
+            username: me.username,
+            role: me.role as UserRole,
+            displayName: me.displayName,
+            avatar: me.avatar,
+          });
+        }
+      } catch {
+        await removeToken();
+      } finally {
+        setLoading(false);
+      }
+    };
+    checkAuth();
+  }, []);
+
+  const login = async (username: string, password: string) => {
+    try {
+      const res = await authApi.login(username, password);
+      await setToken(res.token);
       setUser({
-        username: found.username,
-        role: found.role,
-        displayName: found.displayName,
-        avatar: found.avatar,
+        id: res.id,
+        username: res.username,
+        role: res.role as UserRole,
+        displayName: res.displayName,
+        avatar: res.avatar,
       });
       return { success: true, message: 'Login berhasil!' };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Login gagal' };
     }
-    return { success: false, message: 'Username atau password salah' };
   };
 
-  const logout = () => setUser(null);
+  const register = async (username: string, password: string, displayName: string) => {
+    try {
+      const res = await authApi.register(username, password, displayName);
+      await setToken(res.token);
+      setUser({
+        id: res.id,
+        username: res.username,
+        role: res.role as UserRole,
+        displayName: res.displayName,
+        avatar: res.avatar,
+      });
+      return { success: true, message: 'Registrasi berhasil!' };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Registrasi gagal' };
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await authApi.logout();
+    } catch {
+      // tetap logout meski API error
+    } finally {
+      await removeToken();
+      setUser(null);
+    }
+  };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

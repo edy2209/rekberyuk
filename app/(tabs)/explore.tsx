@@ -1,13 +1,13 @@
-import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-} from 'react-native';
 import { useAuth } from '@/contexts/auth-context';
 import { Redirect, router } from 'expo-router';
+import React from 'react';
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const ADMIN_CHATS = [
@@ -118,7 +118,7 @@ export default function ChatListScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>💬 Chat</Text>
-        {user.role === 'client' && (
+        {user.role === 'user' && (
           <TouchableOpacity
             style={styles.addButton}
             onPress={() => router.push('/add-group')}

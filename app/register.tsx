@@ -3,24 +3,26 @@ import { Redirect, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
 import {
-  Alert,
-  Dimensions,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Alert,
+    Dimensions,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 
 const { width } = Dimensions.get('window');
 
-export default function LoginScreen() {
-  const { user, login, loading: authLoading } = useAuth();
+export default function RegisterScreen() {
+  const { user, register, loading: authLoading } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [loading, setLoading] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
@@ -31,18 +33,36 @@ export default function LoginScreen() {
     return <Redirect href="/(tabs)" />;
   }
 
-  const handleLogin = async () => {
-    if (!username.trim() || !password.trim()) {
-      Alert.alert('Oops', 'Lengkapi username dan password kamu');
+  const handleRegister = async () => {
+    if (!displayName.trim()) {
+      Alert.alert('Oops', 'Nama lengkap harus diisi');
       return;
     }
+    if (!username.trim()) {
+      Alert.alert('Oops', 'Username harus diisi');
+      return;
+    }
+    if (username.trim().length < 3) {
+      Alert.alert('Oops', 'Username minimal 3 karakter');
+      return;
+    }
+    if (!password.trim() || password.length < 6) {
+      Alert.alert('Oops', 'Password minimal 6 karakter');
+      return;
+    }
+    if (password !== confirmPassword) {
+      Alert.alert('Oops', 'Konfirmasi password tidak cocok');
+      return;
+    }
+
     setLoading(true);
-    const result = await login(username.trim(), password.trim());
+    const result = await register(username.trim().toLowerCase(), password, displayName.trim());
     setLoading(false);
+
     if (result.success) {
       router.replace('/(tabs)');
     } else {
-      Alert.alert('Login Gagal', result.message);
+      Alert.alert('Registrasi Gagal', result.message);
     }
   };
 
@@ -50,7 +70,6 @@ export default function LoginScreen() {
     <View style={styles.container}>
       <StatusBar style="dark" />
 
-      {/* Background shapes */}
       <View style={styles.bgCircle1} />
       <View style={styles.bgCircle2} />
 
@@ -71,12 +90,33 @@ export default function LoginScreen() {
               </View>
             </View>
             <Text style={styles.brandName}>RekberYuk</Text>
-            <Text style={styles.brandCaption}>Escrow service terpercaya</Text>
+            <Text style={styles.brandCaption}>Buat akun baru</Text>
           </View>
 
           {/* Form Card */}
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Masuk ke Akun</Text>
+            <Text style={styles.cardTitle}>Daftar Akun</Text>
+
+            {/* Display Name */}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>NAMA LENGKAP</Text>
+              <View
+                style={[
+                  styles.fieldBox,
+                  focusedField === 'displayName' && styles.fieldBoxFocused,
+                ]}
+              >
+                <TextInput
+                  style={styles.fieldInput}
+                  placeholder="Masukkan nama lengkap"
+                  placeholderTextColor="#B0B8C4"
+                  value={displayName}
+                  onChangeText={setDisplayName}
+                  onFocus={() => setFocusedField('displayName')}
+                  onBlur={() => setFocusedField(null)}
+                />
+              </View>
+            </View>
 
             {/* Username */}
             <View style={styles.fieldGroup}>
@@ -99,6 +139,7 @@ export default function LoginScreen() {
                   onBlur={() => setFocusedField(null)}
                 />
               </View>
+              <Text style={styles.fieldHint}>Min. 3 karakter, huruf kecil</Text>
             </View>
 
             {/* Password */}
@@ -112,7 +153,7 @@ export default function LoginScreen() {
               >
                 <TextInput
                   style={[styles.fieldInput, { flex: 1 }]}
-                  placeholder="Masukkan password"
+                  placeholder="Minimal 6 karakter"
                   placeholderTextColor="#B0B8C4"
                   value={password}
                   onChangeText={setPassword}
@@ -131,51 +172,52 @@ export default function LoginScreen() {
               </View>
             </View>
 
-            {/* Forgot */}
-            <TouchableOpacity style={styles.forgotRow}>
-              <Text style={styles.forgotText}>Lupa password?</Text>
-            </TouchableOpacity>
+            {/* Confirm Password */}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>KONFIRMASI PASSWORD</Text>
+              <View
+                style={[
+                  styles.fieldBox,
+                  focusedField === 'confirmPassword' && styles.fieldBoxFocused,
+                ]}
+              >
+                <TextInput
+                  style={styles.fieldInput}
+                  placeholder="Ketik ulang password"
+                  placeholderTextColor="#B0B8C4"
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  secureTextEntry={!showPassword}
+                  onFocus={() => setFocusedField('confirmPassword')}
+                  onBlur={() => setFocusedField(null)}
+                />
+              </View>
+            </View>
 
-            {/* Login Button */}
+            {/* Register Button */}
             <TouchableOpacity
-              style={[styles.loginBtn, loading && styles.loginBtnLoading]}
-              onPress={handleLogin}
+              style={[styles.registerBtn, loading && styles.registerBtnLoading]}
+              onPress={handleRegister}
               disabled={loading}
               activeOpacity={0.85}
             >
               {loading ? (
-                <Text style={styles.loginBtnText}>Tunggu sebentar...</Text>
+                <Text style={styles.registerBtnText}>Mendaftarkan...</Text>
               ) : (
-                <Text style={styles.loginBtnText}>Masuk</Text>
+                <Text style={styles.registerBtnText}>Daftar Sekarang</Text>
               )}
             </TouchableOpacity>
           </View>
 
-          {/* Divider */}
-          <View style={styles.dividerRow}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>atau</Text>
-            <View style={styles.dividerLine} />
+          {/* Login CTA */}
+          <View style={styles.loginRow}>
+            <Text style={styles.loginRowText}>Sudah punya akun? </Text>
+            <TouchableOpacity onPress={() => router.back()}>
+              <Text style={styles.loginRowLink}>Masuk di sini</Text>
+            </TouchableOpacity>
           </View>
 
-          {/* Register CTA */}
-          <TouchableOpacity
-            style={styles.registerBtn}
-            activeOpacity={0.8}
-            onPress={() => router.push('/register')}
-          >
-            <Text style={styles.registerBtnText}>Buat Akun Baru</Text>
-          </TouchableOpacity>
-
-          {/* Footer */}
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>
-              Dengan masuk, kamu menyetujui{' '}
-              <Text style={styles.footerLink}>Ketentuan Layanan</Text>
-              {' & '}
-              <Text style={styles.footerLink}>Kebijakan Privasi</Text>
-            </Text>
-          </View>
+          <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -215,21 +257,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 40,
   },
-
-  // Brand
   brandSection: {
     alignItems: 'center',
-    paddingTop: Platform.OS === 'ios' ? 90 : 70,
-    paddingBottom: 36,
+    paddingTop: Platform.OS === 'ios' ? 70 : 50,
+    paddingBottom: 28,
   },
   logoMark: {
-    width: 68,
-    height: 68,
-    borderRadius: 22,
+    width: 60,
+    height: 60,
+    borderRadius: 20,
     backgroundColor: '#4F46E5',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 18,
+    marginBottom: 14,
     shadowColor: '#4F46E5',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.25,
@@ -237,20 +277,20 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   logoInner: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     backgroundColor: 'rgba(255,255,255,0.18)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   logoLetter: {
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: '900',
     color: '#FFFFFF',
   },
   brandName: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '800',
     color: '#1A1D26',
     letterSpacing: -0.5,
@@ -258,17 +298,15 @@ const styles = StyleSheet.create({
   brandCaption: {
     fontSize: 14,
     color: '#7C8091',
-    marginTop: 6,
+    marginTop: 4,
     fontWeight: '500',
   },
-
-  // Card
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
     paddingHorizontal: 22,
-    paddingTop: 28,
-    paddingBottom: 24,
+    paddingTop: 24,
+    paddingBottom: 22,
     shadowColor: '#1A1D26',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.06,
@@ -279,12 +317,10 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: '#1A1D26',
-    marginBottom: 24,
+    marginBottom: 20,
   },
-
-  // Fields
   fieldGroup: {
-    marginBottom: 18,
+    marginBottom: 16,
   },
   fieldLabel: {
     fontSize: 11,
@@ -313,90 +349,46 @@ const styles = StyleSheet.create({
     color: '#1A1D26',
     fontWeight: '500',
   },
+  fieldHint: {
+    fontSize: 12,
+    color: '#A0A6B4',
+    marginTop: 6,
+    marginLeft: 4,
+  },
   eyeToggle: {
     fontSize: 13,
     fontWeight: '600',
     color: '#4F46E5',
     paddingLeft: 12,
   },
-
-  // Forgot
-  forgotRow: {
-    alignSelf: 'flex-end',
-    marginBottom: 22,
-    marginTop: 2,
-  },
-  forgotText: {
-    fontSize: 13,
-    color: '#4F46E5',
-    fontWeight: '600',
-  },
-
-  // Login button
-  loginBtn: {
+  registerBtn: {
     backgroundColor: '#4F46E5',
     height: 52,
     borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
+    marginTop: 6,
   },
-  loginBtnLoading: {
+  registerBtnLoading: {
     opacity: 0.75,
   },
-  loginBtnText: {
+  registerBtnText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
   },
-
-  // Divider
-  dividerRow: {
+  loginRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 24,
-    paddingHorizontal: 10,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#E0E3EA',
-  },
-  dividerText: {
-    fontSize: 13,
-    color: '#A0A6B4',
-    fontWeight: '500',
-    marginHorizontal: 14,
-  },
-
-  // Register
-  registerBtn: {
-    height: 52,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: '#D5D8E0',
     justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    marginTop: 24,
   },
-  registerBtnText: {
-    fontSize: 16,
+  loginRowText: {
+    fontSize: 14,
+    color: '#7C8091',
+  },
+  loginRowLink: {
+    fontSize: 14,
     fontWeight: '700',
-    color: '#1A1D26',
-  },
-
-  // Footer
-  footer: {
-    marginTop: 28,
-    paddingHorizontal: 16,
-  },
-  footerText: {
-    fontSize: 12,
-    color: '#A0A6B4',
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-  footerLink: {
     color: '#4F46E5',
-    fontWeight: '600',
   },
 });
