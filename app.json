@@ -17,7 +17,8 @@
         "foregroundImage": "./assets/images/app-icon.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.edy2209.rekber"
     },
     "web": {
       "output": "static",
@@ -41,6 +42,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "0a1e99f9-4eb6-4d58-b2c3-e71636d68db0"
+      }
+    },
+    "owner": "edy2209"
   }
 }
