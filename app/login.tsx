@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 import {
   Alert,
   Dimensions,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -48,11 +49,27 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
 
-      {/* Background shapes */}
-      <View style={styles.bgCircle1} />
-      <View style={styles.bgCircle2} />
+      {/* Blue header with branding */}
+      <View style={styles.blueHeader}>
+        <View style={styles.headerCircle1} />
+        <View style={styles.headerCircle2} />
+        <View style={styles.brandRow}>
+          <Image
+            source={require('@/assets/images/splash-girl.png')}
+            style={styles.headerImage}
+            resizeMode="contain"
+          />
+          <View style={styles.brandInfo}>
+            <View style={styles.logoSmall}>
+              <Text style={styles.logoSmallText}>R</Text>
+            </View>
+            <Text style={styles.brandName}>RekberYuk</Text>
+            <Text style={styles.brandCaption}>Transaksi Online Aman & Terpercaya</Text>
+          </View>
+        </View>
+      </View>
 
       <KeyboardAvoidingView
         style={styles.keyboardView}
@@ -63,20 +80,10 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Brand */}
-          <View style={styles.brandSection}>
-            <View style={styles.logoMark}>
-              <View style={styles.logoInner}>
-                <Text style={styles.logoLetter}>R</Text>
-              </View>
-            </View>
-            <Text style={styles.brandName}>RekberYuk</Text>
-            <Text style={styles.brandCaption}>Escrow service terpercaya</Text>
-          </View>
-
           {/* Form Card */}
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Masuk ke Akun</Text>
+            <Text style={styles.cardSubtitle}>Selamat datang kembali! 👋</Text>
 
             {/* Username */}
             <View style={styles.fieldGroup}>
@@ -87,6 +94,7 @@ export default function LoginScreen() {
                   focusedField === 'username' && styles.fieldBoxFocused,
                 ]}
               >
+                <Text style={styles.fieldIcon}>👤</Text>
                 <TextInput
                   style={styles.fieldInput}
                   placeholder="Ketik username kamu"
@@ -110,6 +118,7 @@ export default function LoginScreen() {
                   focusedField === 'password' && styles.fieldBoxFocused,
                 ]}
               >
+                <Text style={styles.fieldIcon}>🔒</Text>
                 <TextInput
                   style={[styles.fieldInput, { flex: 1 }]}
                   placeholder="Masukkan password"
@@ -125,7 +134,7 @@ export default function LoginScreen() {
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                   <Text style={styles.eyeToggle}>
-                    {showPassword ? 'Tutup' : 'Lihat'}
+                    {showPassword ? '🙈' : '👁️'}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -146,7 +155,7 @@ export default function LoginScreen() {
               {loading ? (
                 <Text style={styles.loginBtnText}>Tunggu sebentar...</Text>
               ) : (
-                <Text style={styles.loginBtnText}>Masuk</Text>
+                <Text style={styles.loginBtnText}>Masuk 🚀</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -185,100 +194,116 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F6FA',
+    backgroundColor: '#F0F4FF',
   },
-  bgCircle1: {
+
+  // Blue header
+  blueHeader: {
+    backgroundColor: '#1E3A8A',
+    paddingTop: Platform.OS === 'ios' ? 55 : 40,
+    paddingBottom: 30,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    overflow: 'hidden',
+  },
+  headerCircle1: {
     position: 'absolute',
-    top: -width * 0.35,
-    right: -width * 0.25,
-    width: width * 0.8,
-    height: width * 0.8,
-    borderRadius: width * 0.4,
-    backgroundColor: '#4F46E5',
-    opacity: 0.06,
+    top: -40,
+    right: -30,
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    backgroundColor: '#2563EB',
+    opacity: 0.3,
   },
-  bgCircle2: {
+  headerCircle2: {
     position: 'absolute',
-    bottom: -width * 0.2,
-    left: -width * 0.3,
-    width: width * 0.65,
-    height: width * 0.65,
-    borderRadius: width * 0.325,
-    backgroundColor: '#4F46E5',
-    opacity: 0.04,
+    bottom: -20,
+    left: -20,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#3B82F6',
+    opacity: 0.2,
   },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    gap: 16,
+  },
+  headerImage: {
+    width: 110,
+    height: 130,
+  },
+  brandInfo: {
+    flex: 1,
+    alignItems: 'flex-start',
+  },
+  logoSmall: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  logoSmallText: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#1E3A8A',
+  },
+  brandName: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
+  },
+  brandCaption: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.75)',
+    marginTop: 4,
+    fontWeight: '500',
+  },
+
   keyboardView: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
+    paddingTop: 20,
     paddingBottom: 40,
-  },
-
-  // Brand
-  brandSection: {
-    alignItems: 'center',
-    paddingTop: Platform.OS === 'ios' ? 90 : 70,
-    paddingBottom: 36,
-  },
-  logoMark: {
-    width: 68,
-    height: 68,
-    borderRadius: 22,
-    backgroundColor: '#4F46E5',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 18,
-    shadowColor: '#4F46E5',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 10,
-  },
-  logoInner: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  logoLetter: {
-    fontSize: 26,
-    fontWeight: '900',
-    color: '#FFFFFF',
-  },
-  brandName: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#1A1D26',
-    letterSpacing: -0.5,
-  },
-  brandCaption: {
-    fontSize: 14,
-    color: '#7C8091',
-    marginTop: 6,
-    fontWeight: '500',
   },
 
   // Card
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
+    borderRadius: 24,
     paddingHorizontal: 22,
     paddingTop: 28,
     paddingBottom: 24,
-    shadowColor: '#1A1D26',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 20,
-    elevation: 5,
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 24,
+    elevation: 8,
   },
   cardTitle: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 22,
+    fontWeight: '800',
     color: '#1A1D26',
+  },
+  cardSubtitle: {
+    fontSize: 14,
+    color: '#8E95A6',
+    marginTop: 4,
     marginBottom: 24,
   },
 
@@ -297,15 +322,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F8F9FB',
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1.5,
     borderColor: '#ECEEF2',
-    paddingHorizontal: 16,
-    height: 52,
+    paddingHorizontal: 14,
+    height: 54,
   },
   fieldBoxFocused: {
-    borderColor: '#4F46E5',
-    backgroundColor: '#FAFAFF',
+    borderColor: '#2563EB',
+    backgroundColor: '#F0F4FF',
+  },
+  fieldIcon: {
+    fontSize: 16,
+    marginRight: 10,
   },
   fieldInput: {
     flex: 1,
@@ -314,9 +343,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   eyeToggle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#4F46E5',
+    fontSize: 18,
     paddingLeft: 12,
   },
 
@@ -328,17 +355,22 @@ const styles = StyleSheet.create({
   },
   forgotText: {
     fontSize: 13,
-    color: '#4F46E5',
+    color: '#2563EB',
     fontWeight: '600',
   },
 
   // Login button
   loginBtn: {
-    backgroundColor: '#4F46E5',
-    height: 52,
-    borderRadius: 14,
+    backgroundColor: '#1E3A8A',
+    height: 54,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 6,
   },
   loginBtnLoading: {
     opacity: 0.75,
@@ -353,13 +385,13 @@ const styles = StyleSheet.create({
   dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 24,
+    marginVertical: 20,
     paddingHorizontal: 10,
   },
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#E0E3EA',
+    backgroundColor: '#D5DAE6',
   },
   dividerText: {
     fontSize: 13,
@@ -370,10 +402,10 @@ const styles = StyleSheet.create({
 
   // Register
   registerBtn: {
-    height: 52,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: '#D5D8E0',
+    height: 54,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#1E3A8A',
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
@@ -381,12 +413,12 @@ const styles = StyleSheet.create({
   registerBtnText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1A1D26',
+    color: '#1E3A8A',
   },
 
   // Footer
   footer: {
-    marginTop: 28,
+    marginTop: 24,
     paddingHorizontal: 16,
   },
   footerText: {
@@ -396,7 +428,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   footerLink: {
-    color: '#4F46E5',
+    color: '#2563EB',
     fontWeight: '600',
   },
 });

@@ -53,6 +53,7 @@ export default function ChatListScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [unreadMap, setUnreadMap] = useState<Record<string, number>>({});
+  const [lastMsgTimeMap, setLastMsgTimeMap] = useState<Record<string, string>>({});
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   if (!user) return <Redirect href="/login" />;
@@ -63,10 +64,40 @@ export default function ChatListScreen() {
         groupApi.list(),
         notifApi.list(1, 100).catch(() => ({ notifications: [] } as any)),
       ]);
-      const active = data
-        .filter((g) => g.status !== 'done' && g.status !== 'cancelled')
-        .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+      const active = data.filter((g) => g.status !== 'done' && g.status !== 'cancelled');
+
+      // Fetch pesan terakhir tiap group buat sorting ala WhatsApp
+      const msgTimeMap: Record<string, string> = {};
+      await Promise.all(
+        active.map(async (g) => {
+          try {
+            const msgRes = await groupApi.getMessages(g._id, 1, 50);
+            if (msgRes.messages.length > 0) {
+              // Ambil pesan paling baru (createdAt terbesar)
+              let latest = msgRes.messages[0].createdAt;
+              for (const m of msgRes.messages) {
+                if (new Date(m.createdAt).getTime() > new Date(latest).getTime()) {
+                  latest = m.createdAt;
+                }
+              }
+              msgTimeMap[g._id] = latest;
+            }
+          } catch {
+            // skip
+          }
+        })
+      );
+
+      // Sort: yang punya pesan terbaru di atas, fallback ke updatedAt
+      active.sort((a, b) => {
+        const timeA = new Date(msgTimeMap[a._id] || a.updatedAt).getTime();
+        const timeB = new Date(msgTimeMap[b._id] || b.updatedAt).getTime();
+        return timeB - timeA;
+      });
+
       setGroups(active);
+      setLastMsgTimeMap(msgTimeMap);
+
       // Hitung unread per group
       const map: Record<string, number> = {};
       for (const n of notifRes.notifications || []) {
@@ -177,7 +208,7 @@ export default function ChatListScreen() {
                           <Text style={styles.unreadText}>{unreadMap[group._id]}</Text>
                         </View>
                       )}
-                      <Text style={styles.chatTime}>{formatTime(group.updatedAt)}</Text>
+                      <Text style={styles.chatTime}>{formatTime(lastMsgTimeMap[group._id] || group.updatedAt)}</Text>
                     </View>
                   </View>
                   <View style={styles.chatMiddleRow}>

@@ -1,14 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
 
-// Ganti IP ini sesuai IP WiFi komputer kamu
-const LOCAL_IP = '192.168.100.230';
-
-const BASE_URL = Platform.select({
-  android: `http://${LOCAL_IP}:8080/api`,  // HP Android / Emulator
-  ios: `http://${LOCAL_IP}:8080/api`,       // iPhone
-  default: `http://localhost:8080/api`,     // Web browser
-})!;
+// Backend deployed di Render
+const BASE_URL = 'https://berekberyuk.onrender.com/api';
 
 const TOKEN_KEY = 'rekber_token';
 

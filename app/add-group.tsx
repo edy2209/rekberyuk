@@ -24,20 +24,25 @@ export default function AddGroupScreen() {
   const [creatorRole, setCreatorRole] = useState<'buyer' | 'seller'>('buyer');
   const [loading, setLoading] = useState(false);
   const [partnerName, setPartnerName] = useState('');
+  const [isSelfId, setIsSelfId] = useState(false);
 
   // Ambil displayName partner dari ID
   useEffect(() => {
     setPartnerName('');
+    setIsSelfId(false);
     const id = userId.trim();
     if (!id) return;
+
+    // Cek apakah user masukin ID sendiri
+    if (user && id === user.id) {
+      setIsSelfId(true);
+      return;
+    }
+
     const timer = setTimeout(async () => {
       try {
         const token = await getToken();
-        const base = Platform.select({
-          android: 'http://192.168.100.230:8080/api',
-          ios: 'http://192.168.100.230:8080/api',
-          default: 'http://localhost:8080/api',
-        });
+        const base = 'https://berekberyuk.onrender.com/api';
         const res = await fetch(`${base}/users/search?q=${id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -53,6 +58,10 @@ export default function AddGroupScreen() {
   const handleCreate = async () => {
     if (!userId.trim()) {
       Alert.alert('Error', 'ID pengguna harus diisi');
+      return;
+    }
+    if (user && userId.trim() === user.id) {
+      Alert.alert('Error', 'Masukkan ID partner, bukan ID kamu sendiri');
       return;
     }
     if (!itemName.trim()) {
@@ -147,6 +156,12 @@ export default function AddGroupScreen() {
                 />
               </View>
               <Text style={styles.inputHint}>Masukkan ID partner (hanya menerima via ID)</Text>
+              {isSelfId && (
+                <Text style={styles.selfIdWarning}>⚠️ Ini ID kamu sendiri, masukkan ID partner ya!</Text>
+              )}
+              {!isSelfId && partnerName !== '' && (
+                <Text style={styles.partnerFound}>✅ Partner: {partnerName}</Text>
+              )}
             </View>
 
             <View style={styles.inputGroup}>
@@ -365,6 +380,20 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     marginTop: 6,
     marginLeft: 4,
+  },
+  selfIdWarning: {
+    fontSize: 12,
+    color: '#F59E0B',
+    marginTop: 4,
+    marginLeft: 4,
+    fontWeight: '600',
+  },
+  partnerFound: {
+    fontSize: 12,
+    color: '#10B981',
+    marginTop: 4,
+    marginLeft: 4,
+    fontWeight: '600',
   },
   lookupRow: {
     flexDirection: 'row',
