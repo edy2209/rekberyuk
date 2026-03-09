@@ -1,4 +1,5 @@
 import { useAuth } from '@/contexts/auth-context';
+import { useSocket } from '@/contexts/socket-context';
 import { groupApi, type Group, type GroupMember, type MessageItem } from '@/services/api';
 import * as Clipboard from 'expo-clipboard';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -115,6 +116,7 @@ const isChatLocked = (status: string) => status === 'done' || status === 'cancel
 
 export default function ChatDetailScreen() {
   const { user } = useAuth();
+  const socket = useSocket();
   const { id, name } = useLocalSearchParams<{ id: string; name: string }>();
   const scrollRef = useRef<ScrollView>(null);
   const [inputText, setInputText] = useState('');
@@ -156,26 +158,49 @@ export default function ChatDetailScreen() {
     if (chatId) fetchData();
   }, [chatId]);
 
-  // Poll for new messages every 5s
+  // Realtime: join room + listen new messages via socket
   useEffect(() => {
-    if (!chatId) return;
-    const interval = setInterval(async () => {
-      try {
-        const msgData = await groupApi.getMessages(chatId);
-        setMessages(msgData.messages);
-      } catch {
-        // silent
+    if (!socket || !chatId) return;
+
+    socket.emit('join_group', chatId);
+
+    const handleNewMessage = (msg: MessageItem) => {
+      if (msg.group === chatId) {
+        setMessages((prev) => {
+          // Cegah duplikat
+          if (prev.some((m) => m._id === msg._id)) return prev;
+          return [...prev, msg];
+        });
+        setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
       }
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [chatId]);
+    };
+
+    const handleStatusUpdate = (data: { groupId: string; status: string }) => {
+      if (data.groupId === chatId) {
+        setGroup((prev) => prev ? { ...prev, status: data.status } : prev);
+      }
+    };
+
+    socket.on('new_message', handleNewMessage);
+    socket.on('status_update', handleStatusUpdate);
+
+    return () => {
+      socket.emit('leave_group', chatId);
+      socket.off('new_message', handleNewMessage);
+      socket.off('status_update', handleStatusUpdate);
+    };
+  }, [socket, chatId]);
 
   const sendMessage = async (text: string) => {
     if (!text.trim() || sending) return;
     setSending(true);
     try {
       const newMsg = await groupApi.sendMessage(chatId, text.trim());
-      setMessages((prev) => [...prev, newMsg]);
+      // Tambah pesan langsung, socket akan cegah duplikat via _id check
+      setMessages((prev) => {
+        if (prev.some((m) => m._id === newMsg._id)) return prev;
+        return [...prev, newMsg];
+      });
       setInputText('');
       setShowQuickReplies(false);
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);

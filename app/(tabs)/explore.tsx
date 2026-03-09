@@ -1,7 +1,8 @@
 import { useAuth } from '@/contexts/auth-context';
+import { useSocket } from '@/contexts/socket-context';
 import { groupApi, notifApi, type Group } from '@/services/api';
 import { Redirect, router, useFocusEffect } from 'expo-router';
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
@@ -117,11 +118,24 @@ export default function ChatListScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchGroups();
-      // Polling tiap 15 detik biar chat terbaru selalu naik
-      pollRef.current = setInterval(fetchGroups, 15000);
-      return () => { if (pollRef.current) clearInterval(pollRef.current); };
     }, [])
   );
+
+  // Socket: refresh list saat ada pesan/notif baru
+  const socket = useSocket();
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleRefresh = () => fetchGroups();
+
+    socket.on('new_notification', handleRefresh);
+    socket.on('new_message', handleRefresh);
+
+    return () => {
+      socket.off('new_notification', handleRefresh);
+      socket.off('new_message', handleRefresh);
+    };
+  }, [socket]);
 
   const onRefresh = () => {
     setRefreshing(true);

@@ -5,6 +5,7 @@ import { AppState, StyleSheet, Text, View } from 'react-native';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { useAuth } from '@/contexts/auth-context';
+import { useSocket } from '@/contexts/socket-context';
 import { notifApi } from '@/services/api';
 
 function TabIcon({ icon, label, focused, badge }: { icon: string; label: string; focused: boolean; badge?: number }) {
@@ -67,8 +68,8 @@ const tabIconStyles = StyleSheet.create({
 
 export default function TabLayout() {
   const { user } = useAuth();
+  const socket = useSocket();
   const [unreadCount, setUnreadCount] = useState(0);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const prevUnreadRef = useRef(-1);
 
   const playNotifSound = useCallback(async () => {
@@ -90,26 +91,34 @@ export default function TabLayout() {
     try {
       const res = await notifApi.unreadCount();
       const newCount = res.unreadCount;
-      if (newCount > prevUnreadRef.current && prevUnreadRef.current >= 0) {
-        playNotifSound();
-      }
       prevUnreadRef.current = newCount;
       setUnreadCount(newCount);
     } catch {}
-  }, [playNotifSound]);
+  }, []);
 
+  // Fetch awal + listen socket untuk realtime notif
   useEffect(() => {
     if (!user) return;
     fetchUnread();
-    intervalRef.current = setInterval(fetchUnread, 30000);
+
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') fetchUnread();
     });
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      sub.remove();
-    };
+    return () => sub.remove();
   }, [user, fetchUnread]);
+
+  // Socket: realtime notification
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleNewNotif = () => {
+      setUnreadCount((prev) => prev + 1);
+      playNotifSound();
+    };
+
+    socket.on('new_notification', handleNewNotif);
+    return () => { socket.off('new_notification', handleNewNotif); };
+  }, [socket, playNotifSound]);
 
   if (!user) return <Redirect href="/login" />;
 

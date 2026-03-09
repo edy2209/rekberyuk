@@ -1,15 +1,16 @@
 import { useAuth } from '@/contexts/auth-context';
+import { useSocket } from '@/contexts/socket-context';
 import { notifApi, type NotificationItem } from '@/services/api';
 import { Redirect, router, useFocusEffect } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -62,6 +63,15 @@ export default function NotificationsScreen() {
       fetchNotifs();
     }, [])
   );
+
+  // Socket: auto refresh saat ada notif baru
+  const socket = useSocket();
+  useEffect(() => {
+    if (!socket) return;
+    const handleNewNotif = () => fetchNotifs();
+    socket.on('new_notification', handleNewNotif);
+    return () => { socket.off('new_notification', handleNewNotif); };
+  }, [socket]);
 
   const onRefresh = () => {
     setRefreshing(true);
