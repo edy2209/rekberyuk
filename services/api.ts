@@ -111,6 +111,29 @@ export const authApi = {
 
 // ============ GROUP API ============
 
+export interface UserSearchResult {
+  _id: string;
+  username: string;
+  displayName: string;
+  avatar: string;
+  role: string;
+}
+
+export const userApi = {
+  async search(query: string): Promise<UserSearchResult> {
+    const data = await request<any>(`/users/search?q=${encodeURIComponent(query)}`, {
+      method: 'GET',
+    });
+    // Handle berbagai format response: array, {user:...}, {data:...}, atau langsung object
+    const user = Array.isArray(data) ? data[0]
+      : data?.user ? data.user
+      : data?.data ? (Array.isArray(data.data) ? data.data[0] : data.data)
+      : data;
+    if (!user || !user.username) throw new Error('User tidak ditemukan');
+    return user as UserSearchResult;
+  },
+};
+
 export interface GroupMember {
   user: {
     _id: string;
@@ -209,6 +232,53 @@ export const groupApi = {
     return request<MessageItem>(`/groups/${groupId}/messages`, {
       method: 'POST',
       body: JSON.stringify({ text }),
+    });
+  },
+};
+
+// ============ NOTIFICATION API ============
+
+export interface NotificationItem {
+  _id: string;
+  type: 'new_message' | 'group_invite' | 'status_update';
+  title: string;
+  message: string;
+  group: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export interface NotificationsResponse {
+  notifications: NotificationItem[];
+  unreadCount: number;
+  hasMore: boolean;
+  total: number;
+  page: number;
+}
+
+export const notifApi = {
+  list(page = 1, limit = 20) {
+    return request<NotificationsResponse>(
+      `/notifications?page=${page}&limit=${limit}`,
+      { method: 'GET' }
+    );
+  },
+
+  unreadCount() {
+    return request<{ unreadCount: number }>('/notifications/unread-count', {
+      method: 'GET',
+    });
+  },
+
+  markRead(id: string) {
+    return request<{ message: string }>(`/notifications/${id}/read`, {
+      method: 'PUT',
+    });
+  },
+
+  markAllRead() {
+    return request<{ message: string }>('/notifications/read-all', {
+      method: 'PUT',
     });
   },
 };

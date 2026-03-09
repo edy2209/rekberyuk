@@ -1,6 +1,7 @@
 import { useAuth } from '@/contexts/auth-context';
+import { getToken, groupApi } from '@/services/api';
 import { router } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -22,8 +23,34 @@ export default function AddGroupScreen() {
   const [description, setDescription] = useState('');
   const [creatorRole, setCreatorRole] = useState<'buyer' | 'seller'>('buyer');
   const [loading, setLoading] = useState(false);
+  const [partnerName, setPartnerName] = useState('');
 
-  const handleCreate = () => {
+  // Ambil displayName partner dari ID
+  useEffect(() => {
+    setPartnerName('');
+    const id = userId.trim();
+    if (!id) return;
+    const timer = setTimeout(async () => {
+      try {
+        const token = await getToken();
+        const base = Platform.select({
+          android: 'http://192.168.100.230:8080/api',
+          ios: 'http://192.168.100.230:8080/api',
+          default: 'http://localhost:8080/api',
+        });
+        const res = await fetch(`${base}/users/search?q=${id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        setPartnerName(data[0]?.displayName || '');
+      } catch {
+        setPartnerName('');
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [userId]);
+
+  const handleCreate = async () => {
     if (!userId.trim()) {
       Alert.alert('Error', 'ID pengguna harus diisi');
       return;
@@ -37,16 +64,41 @@ export default function AddGroupScreen() {
       return;
     }
 
-    Alert.alert(
-      'Berhasil! 🎉',
-      `Grup rekber telah dibuat!\n\n📦 ${itemName}\n💰 ${itemPrice}\n👤 Partner: @${userId}\n\nAdmin akan segera bergabung ke grup chat.`,
-      [
-        {
-          text: 'OK',
-          onPress: () => router.back(),
-        },
-      ]
-    );
+    const price = parseInt(itemPrice.replace(/\D/g, ''), 10);
+    if (!price || price <= 0) {
+      Alert.alert('Error', 'Harga tidak valid');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const group = await groupApi.create({
+        partnerUsername: userId.trim(),
+        itemName: itemName.trim(),
+        itemPrice: price,
+        description: description.trim() || undefined,
+        creatorRole,
+      });
+      Alert.alert(
+        'Berhasil! 🎉',
+        `Grup rekber telah dibuat!\n\n📦 ${group.itemName}\n💰 Rp ${group.itemPrice.toLocaleString('id-ID')}\nFee: Rp ${group.fee.toLocaleString('id-ID')}`,
+        [
+          {
+            text: 'Buka Chat',
+            onPress: () => {
+              router.back();
+              setTimeout(() => {
+                router.push({ pathname: '/chat/[id]', params: { id: group._id, name: group.itemName } });
+              }, 100);
+            },
+          },
+        ]
+      );
+    } catch (err: any) {
+      Alert.alert('Gagal Membuat Grup', 'Pastikan ID partner yang dimasukkan benar dan coba lagi.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -86,7 +138,7 @@ export default function AddGroupScreen() {
                 <Text style={styles.inputPrefix}>@</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="Masukkan username / ID"
+                  placeholder="Masukkan ID partner"
                   placeholderTextColor="#94A3B8"
                   value={userId}
                   onChangeText={setUserId}
@@ -94,7 +146,7 @@ export default function AddGroupScreen() {
                   autoCorrect={false}
                 />
               </View>
-              <Text style={styles.inputHint}>Masukkan User ID (MongoDB _id) lawan transaksi</Text>
+              <Text style={styles.inputHint}>Masukkan ID partner (hanya menerima via ID)</Text>
             </View>
 
             <View style={styles.inputGroup}>
@@ -149,14 +201,14 @@ export default function AddGroupScreen() {
                 style={[styles.roleChip, creatorRole === 'buyer' && styles.roleChipActive]}
                 onPress={() => setCreatorRole('buyer')}
               >
-                <Text style={styles.roleChipIcon}>\uD83D\uDED2</Text>
+                <Text style={styles.roleChipIcon}>🛒</Text>
                 <Text style={creatorRole === 'buyer' ? styles.roleChipTextActive : styles.roleChipText}>Buyer</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.roleChip, creatorRole === 'seller' && styles.roleChipActive]}
                 onPress={() => setCreatorRole('seller')}
               >
-                <Text style={styles.roleChipIcon}>\uD83C\uDFEA</Text>
+                <Text style={styles.roleChipIcon}>🏪</Text>
                 <Text style={creatorRole === 'seller' ? styles.roleChipTextActive : styles.roleChipText}>Seller</Text>
               </TouchableOpacity>
             </View>
@@ -175,8 +227,12 @@ export default function AddGroupScreen() {
                 <Text style={styles.summaryValue}>Rp {itemPrice}</Text>
               </View>
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Partner</Text>
-                <Text style={styles.summaryValue}>@{userId || '...'}</Text>
+                <Text style={styles.summaryLabel}>Partner ID</Text>
+                <Text style={styles.summaryValue}>{userId || '...'}</Text>
+              </View>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Partner Name</Text>
+                <Text style={styles.summaryValue}>{partnerName || '-'}</Text>
               </View>
               <View style={[styles.summaryRow, styles.summaryRowLast]}>
                 <Text style={styles.summaryLabel}>Admin</Text>
@@ -194,7 +250,7 @@ export default function AddGroupScreen() {
             activeOpacity={0.8}
             disabled={loading}
           >
-            <Text style={styles.createButtonText}>{loading ? 'Membuat...' : '\uD83E\uDD1D Buat Grup Rekber'}</Text>
+            <Text style={styles.createButtonText}>{loading ? 'Membuat...' : '🤝 Buat Grup Rekber'}</Text>
           </TouchableOpacity>
 
           <View style={{ height: 40 }} />
@@ -309,6 +365,26 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     marginTop: 6,
     marginLeft: 4,
+  },
+  lookupRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    marginLeft: 4,
+    gap: 6,
+  },
+  lookupText: {
+    fontSize: 12,
+    color: '#94A3B8',
+  },
+  lookupSuccess: {
+    fontSize: 13,
+    color: '#10B981',
+    fontWeight: '600',
+  },
+  lookupError: {
+    fontSize: 13,
+    color: '#EF4444',
   },
   roleInfo: {
     marginTop: 24,

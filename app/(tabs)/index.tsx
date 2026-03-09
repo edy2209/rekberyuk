@@ -1,8 +1,10 @@
 import { useAuth } from '@/contexts/auth-context';
+import { groupApi, notifApi, type Group } from '@/services/api';
 import * as Clipboard from 'expo-clipboard';
-import { Redirect, router } from 'expo-router';
-import React from 'react';
+import { Redirect, router, useFocusEffect } from 'expo-router';
+import React, { useCallback, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   RefreshControl,
   ScrollView,
@@ -13,52 +15,102 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const ADMIN_STATS = [
-  { label: 'Total Client', value: '156', icon: '👥', color: '#6366F1' },
-  { label: 'Hari Ini', value: '12', icon: '📊', color: '#F59E0B' },
-  { label: 'Pending', value: '5', icon: '⏳', color: '#EF4444' },
-  { label: 'Selesai', value: '847', icon: '✅', color: '#10B981' },
-];
-
-const CLIENT_STATS = [
-  { label: 'Total Transaksi', value: '8', icon: '📦', color: '#6366F1' },
-  { label: 'Berjalan', value: '2', icon: '🔄', color: '#F59E0B' },
-  { label: 'Selesai', value: '6', icon: '✅', color: '#10B981' },
-  { label: 'Saldo', value: 'Rp 0', icon: '💰', color: '#8B5CF6' },
-];
-
-const RECENT_TRANSACTIONS = [
-  { id: '001', title: 'iPhone 15 Pro Max', amount: 'Rp 18.500.000', status: 'selesai', date: '2 jam lalu' },
-  { id: '002', title: 'MacBook Air M2', amount: 'Rp 15.000.000', status: 'proses', date: '5 jam lalu' },
-  { id: '003', title: 'PS5 Digital Edition', amount: 'Rp 6.500.000', status: 'pending', date: '1 hari lalu' },
-  { id: '004', title: 'Samsung S24 Ultra', amount: 'Rp 17.000.000', status: 'selesai', date: '2 hari lalu' },
-];
-
 const getStatusStyle = (status: string) => {
   switch (status) {
-    case 'selesai':
+    case 'done':
       return { bg: '#D1FAE5', text: '#065F46', label: 'Selesai' };
-    case 'proses':
-      return { bg: '#FEF3C7', text: '#92400E', label: 'Dalam Proses' };
+    case 'cancelled':
+      return { bg: '#F1F5F9', text: '#64748B', label: 'Dibatalkan' };
+    case 'paid':
+      return { bg: '#DBEAFE', text: '#1E40AF', label: 'Sudah Bayar' };
+    case 'shipped':
+      return { bg: '#EDE9FE', text: '#6D28D9', label: 'Dikirim' };
+    case 'received':
+      return { bg: '#D1FAE5', text: '#065F46', label: 'Diterima' };
     case 'pending':
-      return { bg: '#FEE2E2', text: '#991B1B', label: 'Pending' };
+      return { bg: '#FEF3C7', text: '#92400E', label: 'Pending' };
     default:
       return { bg: '#E5E7EB', text: '#374151', label: status };
   }
 };
 
+const formatPrice = (price: number) => {
+  return `Rp ${price.toLocaleString('id-ID')}`;
+};
+
+const formatTime = (dateStr: string) => {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffH = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  if (diffH < 1) return 'Baru saja';
+  if (diffH < 24) return `${diffH} jam lalu`;
+  if (diffDays === 1) return 'Kemarin';
+  if (diffDays < 7) return `${diffDays} hari lalu`;
+  return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+};
+
 export default function DashboardScreen() {
   const { user } = useAuth();
-  const [refreshing, setRefreshing] = React.useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   if (!user) return <Redirect href="/login" />;
 
-  const stats = user.role === 'admin' ? ADMIN_STATS : CLIENT_STATS;
+  const fetchData = async () => {
+    try {
+      const [data, notifRes] = await Promise.all([
+        groupApi.list(),
+        notifApi.unreadCount().catch(() => ({ unreadCount: 0 })),
+      ]);
+      setGroups(data);
+      setUnreadCount(notifRes.unreadCount);
+    } catch {
+      // silent
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1000);
+    fetchData();
   };
+
+  const totalCount = groups.length;
+  const activeCount = groups.filter((g) => !['done', 'cancelled'].includes(g.status)).length;
+  const doneCount = groups.filter((g) => g.status === 'done').length;
+  const cancelledCount = groups.filter((g) => g.status === 'cancelled').length;
+
+  const recentGroups = [...groups]
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    .slice(0, 5);
+
+  const adminStats = [
+    { label: 'Total Transaksi', value: String(totalCount), icon: '📦', color: '#6366F1' },
+    { label: 'Berjalan', value: String(activeCount), icon: '🔄', color: '#F59E0B' },
+    { label: 'Selesai', value: String(doneCount), icon: '✅', color: '#10B981' },
+    { label: 'Batal', value: String(cancelledCount), icon: '❌', color: '#EF4444' },
+  ];
+
+  const clientStats = [
+    { label: 'Total Transaksi', value: String(totalCount), icon: '📦', color: '#6366F1' },
+    { label: 'Berjalan', value: String(activeCount), icon: '🔄', color: '#F59E0B' },
+    { label: 'Selesai', value: String(doneCount), icon: '✅', color: '#10B981' },
+    { label: 'Batal', value: String(cancelledCount), icon: '❌', color: '#EF4444' },
+  ];
+
+  const stats = user.role === 'admin' ? adminStats : clientStats;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -89,8 +141,22 @@ export default function DashboardScreen() {
               </Text>
             </View>
           </View>
-          <View style={styles.avatarContainer}>
-            <Text style={styles.avatarText}>{user.avatar}</Text>
+          <View style={styles.headerRight}>
+            <TouchableOpacity
+              style={styles.bellContainer}
+              onPress={() => router.push('/(tabs)/notifications')}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.bellIcon}>🔔</Text>
+              {unreadCount > 0 && (
+                <View style={styles.bellBadge}>
+                  <Text style={styles.bellBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            <View style={styles.avatarContainer}>
+              <Text style={styles.avatarText}>{user.avatar}</Text>
+            </View>
           </View>
         </View>
 
@@ -184,30 +250,48 @@ export default function DashboardScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Transaksi Terbaru</Text>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/transactions')}>
               <Text style={styles.seeAllText}>Lihat Semua</Text>
             </TouchableOpacity>
           </View>
-          {RECENT_TRANSACTIONS.map((tx) => {
-            const statusStyle = getStatusStyle(tx.status);
-            return (
-              <TouchableOpacity key={tx.id} style={styles.transactionCard} activeOpacity={0.7}>
-                <View style={styles.txIconContainer}>
-                  <Text style={styles.txIcon}>📦</Text>
-                </View>
-                <View style={styles.txInfo}>
-                  <Text style={styles.txTitle}>{tx.title}</Text>
-                  <Text style={styles.txAmount}>{tx.amount}</Text>
-                  <Text style={styles.txDate}>{tx.date}</Text>
-                </View>
-                <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
-                  <Text style={[styles.statusText, { color: statusStyle.text }]}>
-                    {statusStyle.label}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            );
-          })}
+          {loading ? (
+            <ActivityIndicator size="small" color="#6366F1" style={{ paddingVertical: 20 }} />
+          ) : recentGroups.length === 0 ? (
+            <View style={styles.emptyTx}>
+              <Text style={styles.emptyTxText}>Belum ada transaksi</Text>
+            </View>
+          ) : (
+            recentGroups.map((group) => {
+              const statusStyle = getStatusStyle(group.status);
+              return (
+                <TouchableOpacity
+                  key={group._id}
+                  style={styles.transactionCard}
+                  activeOpacity={0.7}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/chat/[id]',
+                      params: { id: group._id, name: group.itemName },
+                    })
+                  }
+                >
+                  <View style={styles.txIconContainer}>
+                    <Text style={styles.txIcon}>📦</Text>
+                  </View>
+                  <View style={styles.txInfo}>
+                    <Text style={styles.txTitle}>{group.itemName}</Text>
+                    <Text style={styles.txAmount}>{formatPrice(group.itemPrice)}</Text>
+                    <Text style={styles.txDate}>{formatTime(group.updatedAt)}</Text>
+                  </View>
+                  <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
+                    <Text style={[styles.statusText, { color: statusStyle.text }]}>
+                      {statusStyle.label}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })
+          )}
         </View>
 
         <View style={{ height: 30 }} />
@@ -282,6 +366,41 @@ const styles = StyleSheet.create({
   },
   avatarText: {
     fontSize: 26,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  bellContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  bellIcon: {
+    fontSize: 20,
+  },
+  bellBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: '#EF4444',
+    borderRadius: 9,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: '#FFF',
+  },
+  bellBadgeText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: '700',
   },
   statsGrid: {
     flexDirection: 'row',
@@ -416,5 +535,16 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 11,
     fontWeight: '700',
+  },
+  emptyTx: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+  },
+  emptyTxText: {
+    fontSize: 14,
+    color: '#94A3B8',
+    fontWeight: '500',
   },
 });

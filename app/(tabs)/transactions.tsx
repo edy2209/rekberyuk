@@ -1,145 +1,125 @@
-import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-} from 'react-native';
 import { useAuth } from '@/contexts/auth-context';
-import { Redirect } from 'expo-router';
+import { groupApi, type Group } from '@/services/api';
+import { Redirect, router, useFocusEffect } from 'expo-router';
+import React, { useCallback, useState } from 'react';
+import {
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-const ALL_TRANSACTIONS = [
-  {
-    id: 'TRX-001',
-    title: 'iPhone 15 Pro Max',
-    amount: 'Rp 18.500.000',
-    buyer: 'alex_buyer',
-    seller: 'bob_seller',
-    status: 'selesai',
-    date: '5 Mar 2026',
-    fee: 'Rp 185.000',
-  },
-  {
-    id: 'TRX-002',
-    title: 'MacBook Air M2',
-    amount: 'Rp 15.000.000',
-    buyer: 'carol_buyer',
-    seller: 'dave_seller',
-    status: 'proses',
-    date: '5 Mar 2026',
-    fee: 'Rp 150.000',
-  },
-  {
-    id: 'TRX-003',
-    title: 'PS5 Digital Edition',
-    amount: 'Rp 6.500.000',
-    buyer: 'eve_buyer',
-    seller: 'frank_seller',
-    status: 'pending',
-    date: '4 Mar 2026',
-    fee: 'Rp 65.000',
-  },
-  {
-    id: 'TRX-004',
-    title: 'Samsung S24 Ultra',
-    amount: 'Rp 17.000.000',
-    buyer: 'grace_buyer',
-    seller: 'hank_seller',
-    status: 'selesai',
-    date: '3 Mar 2026',
-    fee: 'Rp 170.000',
-  },
-  {
-    id: 'TRX-005',
-    title: 'Nintendo Switch OLED',
-    amount: 'Rp 4.200.000',
-    buyer: 'user123',
-    seller: 'ian_seller',
-    status: 'selesai',
-    date: '1 Mar 2026',
-    fee: 'Rp 42.000',
-  },
-  {
-    id: 'TRX-006',
-    title: 'iPad Pro M4',
-    amount: 'Rp 19.000.000',
-    buyer: 'jack_buyer',
-    seller: 'kim_seller',
-    status: 'batal',
-    date: '28 Feb 2026',
-    fee: '-',
-  },
-];
 
 const getStatusStyle = (status: string) => {
   switch (status) {
-    case 'selesai':
+    case 'done':
       return { bg: '#D1FAE5', text: '#065F46', label: 'Selesai', icon: '✅' };
-    case 'proses':
-      return { bg: '#FEF3C7', text: '#92400E', label: 'Dalam Proses', icon: '🔄' };
-    case 'pending':
-      return { bg: '#FEE2E2', text: '#991B1B', label: 'Pending', icon: '⏳' };
-    case 'batal':
+    case 'cancelled':
       return { bg: '#F1F5F9', text: '#64748B', label: 'Dibatalkan', icon: '❌' };
+    case 'paid':
+      return { bg: '#DBEAFE', text: '#1E40AF', label: 'Sudah Bayar', icon: '💰' };
+    case 'shipped':
+      return { bg: '#EDE9FE', text: '#6D28D9', label: 'Dikirim', icon: '📦' };
+    case 'received':
+      return { bg: '#D1FAE5', text: '#065F46', label: 'Diterima', icon: '✅' };
+    case 'pending':
+      return { bg: '#FEF3C7', text: '#92400E', label: 'Pending', icon: '⏳' };
     default:
       return { bg: '#E5E7EB', text: '#374151', label: status, icon: '📋' };
   }
 };
 
-type FilterType = 'semua' | 'proses' | 'selesai' | 'pending' | 'batal';
+const formatDate = (dateStr: string) => {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+};
+
+const formatPrice = (price: number) => {
+  return `Rp ${price.toLocaleString('id-ID')}`;
+};
+
+type FilterType = 'semua' | 'done' | 'cancelled';
 
 export default function TransactionsScreen() {
   const { user } = useAuth();
-  const [filter, setFilter] = React.useState<FilterType>('semua');
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [filter, setFilter] = useState<FilterType>('semua');
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   if (!user) return <Redirect href="/login" />;
 
-  const filteredTransactions =
+  const fetchGroups = async () => {
+    try {
+      const data = await groupApi.list();
+      // Hanya transaksi yang sudah selesai atau dibatalkan (history)
+      setGroups(data.filter((g) => g.status === 'done' || g.status === 'cancelled'));
+    } catch {
+      // silent fail
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchGroups();
+    }, [])
+  );
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchGroups();
+  };
+
+  const filteredGroups =
     filter === 'semua'
-      ? ALL_TRANSACTIONS
-      : ALL_TRANSACTIONS.filter((t) => t.status === filter);
+      ? groups
+      : groups.filter((g) => g.status === filter);
+
+  const doneCount = groups.filter((g) => g.status === 'done').length;
+  const cancelledCount = groups.filter((g) => g.status === 'cancelled').length;
 
   const filters: { key: FilterType; label: string }[] = [
-    { key: 'semua', label: 'Semua' },
-    { key: 'proses', label: 'Proses' },
-    { key: 'pending', label: 'Pending' },
-    { key: 'selesai', label: 'Selesai' },
-    { key: 'batal', label: 'Batal' },
+    { key: 'semua', label: `Semua (${groups.length})` },
+    { key: 'done', label: `Selesai (${doneCount})` },
+    { key: 'cancelled', label: `Batal (${cancelledCount})` },
   ];
+
+  const getMember = (group: Group, role: string) => {
+    const m = group.members.find((m) => m.role === role);
+    return m ? m.user.displayName || m.user.username : '-';
+  };
 
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>📋 Transaksi</Text>
+        <Text style={styles.headerTitle}>📋 Riwayat Transaksi</Text>
         <Text style={styles.headerSubtitle}>
-          {user.role === 'admin' ? 'Semua transaksi' : 'Transaksi Anda'}
+          {user.role === 'admin' ? 'Semua transaksi selesai/batal' : 'Riwayat transaksi Anda'}
         </Text>
       </View>
 
       {/* Summary Card */}
       <View style={styles.summaryCard}>
         <View style={styles.summaryItem}>
-          <Text style={styles.summaryValue}>
-            {ALL_TRANSACTIONS.filter((t) => t.status === 'selesai').length}
-          </Text>
+          <Text style={styles.summaryValue}>{groups.length}</Text>
+          <Text style={styles.summaryLabel}>Total</Text>
+        </View>
+        <View style={styles.summaryDivider} />
+        <View style={styles.summaryItem}>
+          <Text style={[styles.summaryValue, { color: '#10B981' }]}>{doneCount}</Text>
           <Text style={styles.summaryLabel}>Selesai</Text>
         </View>
         <View style={styles.summaryDivider} />
         <View style={styles.summaryItem}>
-          <Text style={[styles.summaryValue, { color: '#F59E0B' }]}>
-            {ALL_TRANSACTIONS.filter((t) => t.status === 'proses').length}
-          </Text>
-          <Text style={styles.summaryLabel}>Proses</Text>
-        </View>
-        <View style={styles.summaryDivider} />
-        <View style={styles.summaryItem}>
-          <Text style={[styles.summaryValue, { color: '#EF4444' }]}>
-            {ALL_TRANSACTIONS.filter((t) => t.status === 'pending').length}
-          </Text>
-          <Text style={styles.summaryLabel}>Pending</Text>
+          <Text style={[styles.summaryValue, { color: '#EF4444' }]}>{cancelledCount}</Text>
+          <Text style={styles.summaryLabel}>Batal</Text>
         </View>
       </View>
 
@@ -168,50 +148,79 @@ export default function TransactionsScreen() {
       </ScrollView>
 
       {/* Transaction List */}
-      <ScrollView showsVerticalScrollIndicator={false} style={styles.listContainer}>
-        {filteredTransactions.map((tx) => {
-          const statusStyle = getStatusStyle(tx.status);
-          return (
-            <TouchableOpacity key={tx.id} style={styles.txCard} activeOpacity={0.7}>
-              <View style={styles.txHeader}>
-                <View style={styles.txIdContainer}>
-                  <Text style={styles.txId}>{tx.id}</Text>
-                  <Text style={styles.txDate}>{tx.date}</Text>
-                </View>
-                <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
-                  <Text style={{ fontSize: 12 }}>{statusStyle.icon}</Text>
-                  <Text style={[styles.statusText, { color: statusStyle.text }]}>
-                    {statusStyle.label}
-                  </Text>
-                </View>
-              </View>
-
-              <Text style={styles.txTitle}>{tx.title}</Text>
-              <Text style={styles.txAmount}>{tx.amount}</Text>
-
-              <View style={styles.txDetails}>
-                <View style={styles.txDetailItem}>
-                  <Text style={styles.txDetailLabel}>Buyer</Text>
-                  <Text style={styles.txDetailValue}>@{tx.buyer}</Text>
-                </View>
-                <View style={styles.txDetailItem}>
-                  <Text style={styles.txDetailLabel}>Seller</Text>
-                  <Text style={styles.txDetailValue}>@{tx.seller}</Text>
-                </View>
-                {user.role === 'admin' && (
-                  <View style={styles.txDetailItem}>
-                    <Text style={styles.txDetailLabel}>Fee</Text>
-                    <Text style={[styles.txDetailValue, { color: '#10B981' }]}>
-                      {tx.fee}
+      {loading ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color="#6366F1" />
+        </View>
+      ) : (
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        style={styles.listContainer}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6366F1" />
+        }
+      >
+        {filteredGroups.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyIcon}>📭</Text>
+            <Text style={styles.emptyText}>Belum ada riwayat transaksi</Text>
+          </View>
+        ) : (
+          filteredGroups.map((group) => {
+            const statusStyle = getStatusStyle(group.status);
+            return (
+              <TouchableOpacity
+                key={group._id}
+                style={styles.txCard}
+                activeOpacity={0.7}
+                onPress={() =>
+                  router.push({
+                    pathname: '/chat/[id]',
+                    params: { id: group._id, name: group.itemName },
+                  })
+                }
+              >
+                <View style={styles.txHeader}>
+                  <View style={styles.txIdContainer}>
+                    <Text style={styles.txId}>{group._id.slice(-8).toUpperCase()}</Text>
+                    <Text style={styles.txDate}>{formatDate(group.createdAt)}</Text>
+                  </View>
+                  <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
+                    <Text style={{ fontSize: 12 }}>{statusStyle.icon}</Text>
+                    <Text style={[styles.statusText, { color: statusStyle.text }]}>
+                      {statusStyle.label}
                     </Text>
                   </View>
-                )}
-              </View>
-            </TouchableOpacity>
-          );
-        })}
+                </View>
+
+                <Text style={styles.txTitle}>{group.itemName}</Text>
+                <Text style={styles.txAmount}>{formatPrice(group.itemPrice)}</Text>
+
+                <View style={styles.txDetails}>
+                  <View style={styles.txDetailItem}>
+                    <Text style={styles.txDetailLabel}>Buyer</Text>
+                    <Text style={styles.txDetailValue}>{getMember(group, 'buyer')}</Text>
+                  </View>
+                  <View style={styles.txDetailItem}>
+                    <Text style={styles.txDetailLabel}>Seller</Text>
+                    <Text style={styles.txDetailValue}>{getMember(group, 'seller')}</Text>
+                  </View>
+                  {user.role === 'admin' && (
+                    <View style={styles.txDetailItem}>
+                      <Text style={styles.txDetailLabel}>Fee</Text>
+                      <Text style={[styles.txDetailValue, { color: '#10B981' }]}>
+                        {group.status === 'cancelled' ? '-' : formatPrice(group.fee)}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </TouchableOpacity>
+            );
+          })
+        )}
         <View style={{ height: 30 }} />
       </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -372,5 +381,19 @@ const styles = StyleSheet.create({
     color: '#374151',
     fontWeight: '600',
     marginTop: 3,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: 12,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#94A3B8',
+    fontWeight: '600',
   },
 });

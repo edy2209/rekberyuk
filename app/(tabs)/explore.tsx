@@ -1,7 +1,7 @@
 import { useAuth } from '@/contexts/auth-context';
-import { groupApi, type Group } from '@/services/api';
+import { groupApi, notifApi, type Group } from '@/services/api';
 import { Redirect, router, useFocusEffect } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
@@ -52,13 +52,29 @@ export default function ChatListScreen() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [unreadMap, setUnreadMap] = useState<Record<string, number>>({});
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   if (!user) return <Redirect href="/login" />;
 
   const fetchGroups = async () => {
     try {
-      const data = await groupApi.list();
-      setGroups(data);
+      const [data, notifRes] = await Promise.all([
+        groupApi.list(),
+        notifApi.list(1, 100).catch(() => ({ notifications: [] } as any)),
+      ]);
+      const active = data
+        .filter((g) => g.status !== 'done' && g.status !== 'cancelled')
+        .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+      setGroups(active);
+      // Hitung unread per group
+      const map: Record<string, number> = {};
+      for (const n of notifRes.notifications || []) {
+        if (!n.isRead && n.group) {
+          map[n.group] = (map[n.group] || 0) + 1;
+        }
+      }
+      setUnreadMap(map);
     } catch {
       // silent fail
     } finally {
@@ -70,6 +86,9 @@ export default function ChatListScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchGroups();
+      // Polling tiap 15 detik biar chat terbaru selalu naik
+      pollRef.current = setInterval(fetchGroups, 15000);
+      return () => { if (pollRef.current) clearInterval(pollRef.current); };
     }, [])
   );
 
@@ -117,7 +136,7 @@ export default function ChatListScreen() {
           {groups.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyIcon}>📭</Text>
-              <Text style={styles.emptyText}>Belum ada grup rekber</Text>
+              <Text style={styles.emptyText}>Tidak ada transaksi aktif</Text>
               {user.role === 'user' && (
                 <TouchableOpacity
                   style={styles.emptyButton}
@@ -152,7 +171,14 @@ export default function ChatListScreen() {
                     <Text style={styles.chatName} numberOfLines={1}>
                       {group.itemName}
                     </Text>
-                    <Text style={styles.chatTime}>{formatTime(group.updatedAt)}</Text>
+                    <View style={styles.chatTimeRow}>
+                      {unreadMap[group._id] > 0 && (
+                        <View style={styles.unreadBadge}>
+                          <Text style={styles.unreadText}>{unreadMap[group._id]}</Text>
+                        </View>
+                      )}
+                      <Text style={styles.chatTime}>{formatTime(group.updatedAt)}</Text>
+                    </View>
                   </View>
                   <View style={styles.chatMiddleRow}>
                     <Text style={styles.chatAmount}>{formatPrice(group.itemPrice)}</Text>
@@ -323,6 +349,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#94A3B8',
     fontWeight: '500',
+  },
+  chatTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   chatMiddleRow: {
     flexDirection: 'row',

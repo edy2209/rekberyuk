@@ -1,5 +1,5 @@
 import { useAuth } from '@/contexts/auth-context';
-import { groupApi, type Group, type MessageItem } from '@/services/api';
+import { groupApi, type Group, type GroupMember, type MessageItem } from '@/services/api';
 import * as Clipboard from 'expo-clipboard';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
@@ -85,6 +85,34 @@ const formatTime = (dateStr: string) => {
   return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 };
 
+// Status flow: pending → paid → shipped → received → done (or cancelled at any step)
+const STATUS_FLOW: Record<string, string> = {
+  pending: 'paid',
+  paid: 'shipped',
+  shipped: 'received',
+  received: 'done',
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  pending: '⏳ Pending',
+  paid: '💰 Sudah Bayar',
+  shipped: '📦 Dikirim',
+  received: '✅ Diterima',
+  done: '🎉 Selesai',
+  cancelled: '❌ Dibatalkan',
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  pending: '#F59E0B',
+  paid: '#3B82F6',
+  shipped: '#8B5CF6',
+  received: '#10B981',
+  done: '#059669',
+  cancelled: '#EF4444',
+};
+
+const isChatLocked = (status: string) => status === 'done' || status === 'cancelled';
+
 export default function ChatDetailScreen() {
   const { user } = useAuth();
   const { id, name } = useLocalSearchParams<{ id: string; name: string }>();
@@ -97,9 +125,14 @@ export default function ChatDetailScreen() {
   const [group, setGroup] = useState<Group | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [showMembersModal, setShowMembersModal] = useState(false);
+  const [addMemberUserId, setAddMemberUserId] = useState('');
+  const [addMemberRole, setAddMemberRole] = useState<'buyer' | 'seller'>('buyer');
 
   const chatId = id || '';
   const chatName = name || 'Chat';
+  const isAdmin = user?.role === 'admin';
+  const chatLocked = group ? isChatLocked(group.status) : false;
 
   const quickReplies =
     user?.role === 'admin' ? ADMIN_QUICK_REPLIES : CLIENT_QUICK_REPLIES;
@@ -170,6 +203,94 @@ export default function ChatDetailScreen() {
     setShowBankModal(false);
   };
 
+  // === Status management (admin only) ===
+  const handleNextStatus = () => {
+    if (!group || !isAdmin) return;
+    const nextStatus = STATUS_FLOW[group.status];
+    if (!nextStatus) return;
+    Alert.alert(
+      'Update Status',
+      `Ubah status ke "${STATUS_LABELS[nextStatus]}"?`,
+      [
+        { text: 'Batal', style: 'cancel' },
+        {
+          text: 'Ya, Update',
+          onPress: async () => {
+            try {
+              const updated = await groupApi.updateStatus(chatId, nextStatus);
+              setGroup(updated);
+            } catch (err: any) {
+              Alert.alert('Gagal', err.message || 'Gagal update status');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleCancelTransaction = () => {
+    if (!group || !isAdmin) return;
+    if (isChatLocked(group.status)) return;
+    Alert.alert(
+      'Batalkan Transaksi',
+      'Yakin ingin membatalkan transaksi ini? Tindakan ini tidak bisa dibatalkan.',
+      [
+        { text: 'Tidak', style: 'cancel' },
+        {
+          text: 'Ya, Batalkan',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const updated = await groupApi.updateStatus(chatId, 'cancelled');
+              setGroup(updated);
+            } catch (err: any) {
+              Alert.alert('Gagal', err.message || 'Gagal membatalkan');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // === Member management ===
+  const handleAddMember = async () => {
+    if (!addMemberUserId.trim()) {
+      Alert.alert('Error', 'User ID harus diisi');
+      return;
+    }
+    try {
+      const updated = await groupApi.addMember(chatId, addMemberUserId.trim(), addMemberRole);
+      setGroup(updated);
+      setAddMemberUserId('');
+      Alert.alert('Berhasil', 'Member ditambahkan');
+    } catch (err: any) {
+      Alert.alert('Gagal', err.message || 'Gagal tambah member');
+    }
+  };
+
+  const handleRemoveMember = (member: GroupMember) => {
+    if (!isAdmin) return;
+    Alert.alert(
+      'Keluarkan Member',
+      `Keluarkan ${member.user.displayName || member.user.username} dari grup?`,
+      [
+        { text: 'Batal', style: 'cancel' },
+        {
+          text: 'Keluarkan',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const updated = await groupApi.removeMember(chatId, member.user._id);
+              setGroup(updated);
+            } catch (err: any) {
+              Alert.alert('Gagal', err.message || 'Gagal mengeluarkan member');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
@@ -204,9 +325,118 @@ export default function ChatDetailScreen() {
           </Text>
         </View>
         <View style={styles.headerAvatar}>
-          <Text style={styles.headerAvatarText}>👥</Text>
+          <TouchableOpacity onPress={() => setShowMembersModal(true)}>
+            <Text style={styles.headerAvatarText}>👥</Text>
+          </TouchableOpacity>
         </View>
       </View>
+
+      {/* Status Bar */}
+      {group && (
+        <View style={[styles.statusBar, { backgroundColor: STATUS_COLORS[group.status] + '15' }]}>
+          <View style={styles.statusBarLeft}>
+            <Text style={[styles.statusBadge, { backgroundColor: STATUS_COLORS[group.status] }]}>
+              {STATUS_LABELS[group.status] || group.status}
+            </Text>
+            <Text style={styles.statusPrice}>
+              Rp {group.itemPrice.toLocaleString('id-ID')}
+            </Text>
+          </View>
+          {isAdmin && !isChatLocked(group.status) && (
+            <View style={styles.statusActions}>
+              {STATUS_FLOW[group.status] && (
+                <TouchableOpacity style={styles.statusNextBtn} onPress={handleNextStatus}>
+                  <Text style={styles.statusNextBtnText}>
+                    → {STATUS_LABELS[STATUS_FLOW[group.status]]}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={styles.statusCancelBtn} onPress={handleCancelTransaction}>
+                <Text style={styles.statusCancelBtnText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Members Modal */}
+      <Modal
+        visible={showMembersModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowMembersModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>👥 Member Grup</Text>
+              <TouchableOpacity onPress={() => setShowMembersModal(false)}>
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {group?.members.map((member) => (
+                <View key={member.user._id} style={styles.memberCard}>
+                  <View style={styles.memberInfo}>
+                    <Text style={styles.memberAvatar}>{member.user.avatar || '👤'}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.memberName}>
+                        {member.user.displayName || member.user.username}
+                        {member.user._id === user?.id ? ' (Kamu)' : ''}
+                      </Text>
+                      <Text style={styles.memberUsername}>@{member.user.username}</Text>
+                    </View>
+                    <View style={[styles.memberRoleBadge, { backgroundColor: getSenderColor(member.role) + '20' }]}>
+                      <Text style={[styles.memberRoleText, { color: getSenderColor(member.role) }]}>
+                        {member.role}
+                      </Text>
+                    </View>
+                  </View>
+                  {isAdmin && member.role !== 'admin' && (
+                    <TouchableOpacity
+                      style={styles.removeMemberBtn}
+                      onPress={() => handleRemoveMember(member)}
+                    >
+                      <Text style={styles.removeMemberBtnText}>Keluarkan</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ))}
+
+              {/* Add Member Section */}
+              <View style={styles.addMemberSection}>
+                <Text style={styles.addMemberTitle}>Tambah Member</Text>
+                <View style={styles.addMemberRow}>
+                  <TextInput
+                    style={styles.addMemberInput}
+                    placeholder="User ID"
+                    placeholderTextColor="#94A3B8"
+                    value={addMemberUserId}
+                    onChangeText={setAddMemberUserId}
+                    autoCapitalize="none"
+                  />
+                  <TouchableOpacity
+                    style={[styles.addMemberRoleBtn, addMemberRole === 'buyer' && styles.addMemberRoleBtnActive]}
+                    onPress={() => setAddMemberRole('buyer')}
+                  >
+                    <Text style={addMemberRole === 'buyer' ? styles.addMemberRoleTextActive : styles.addMemberRoleText}>B</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.addMemberRoleBtn, addMemberRole === 'seller' && styles.addMemberRoleBtnActive]}
+                    onPress={() => setAddMemberRole('seller')}
+                  >
+                    <Text style={addMemberRole === 'seller' ? styles.addMemberRoleTextActive : styles.addMemberRoleText}>S</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.addMemberSubmitBtn} onPress={handleAddMember}>
+                    <Text style={styles.addMemberSubmitText}>+</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       {/* Bank Accounts Modal */}
       <Modal
@@ -365,6 +595,20 @@ export default function ChatDetailScreen() {
         )}
 
         {/* Input Bar */}
+        {chatLocked && !isAdmin ? (
+          <View style={styles.lockedBar}>
+            <Text style={styles.lockedBarText}>
+              🔒 Transaksi {group?.status === 'done' ? 'sudah selesai' : 'dibatalkan'}. Chat ditutup.
+            </Text>
+          </View>
+        ) : chatLocked && isAdmin ? (
+          <View style={styles.lockedBar}>
+            <Text style={styles.lockedBarText}>
+              🔒 Transaksi {group?.status === 'done' ? 'selesai' : 'dibatalkan'}. Hanya admin yang bisa mengirim pesan.
+            </Text>
+          </View>
+        ) : null}
+        {(!chatLocked || isAdmin) && (
         <View style={styles.inputBar}>
           <TouchableOpacity
             style={[styles.quickReplyToggle, showQuickReplies && styles.quickReplyToggleActive]}
@@ -394,6 +638,7 @@ export default function ChatDetailScreen() {
             <Text style={styles.sendButtonText}>{sending ? '…' : '➤'}</Text>
           </TouchableOpacity>
         </View>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -758,6 +1003,192 @@ const styles = StyleSheet.create({
   sendBankButtonText: {
     color: '#FFFFFF',
     fontSize: 14,
+    fontWeight: '700',
+  },
+  // === Status Bar ===
+  statusBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  statusBarLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  statusBadge: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  statusPrice: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#374151',
+  },
+  statusActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  statusNextBtn: {
+    backgroundColor: '#6366F1',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  statusNextBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  statusCancelBtn: {
+    backgroundColor: '#FEE2E2',
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  statusCancelBtnText: {
+    color: '#EF4444',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  // === Locked Bar ===
+  lockedBar: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: '#F1F5F9',
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    alignItems: 'center',
+  },
+  lockedBarText: {
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  // === Members Modal ===
+  memberCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  memberInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  memberAvatar: {
+    fontSize: 28,
+  },
+  memberName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  memberUsername: {
+    fontSize: 12,
+    color: '#94A3B8',
+    marginTop: 2,
+  },
+  memberRoleBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  memberRoleText: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'capitalize',
+  },
+  removeMemberBtn: {
+    marginTop: 8,
+    alignSelf: 'flex-end',
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  removeMemberBtnText: {
+    color: '#EF4444',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  addMemberSection: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+  },
+  addMemberTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginBottom: 10,
+  },
+  addMemberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  addMemberInput: {
+    flex: 1,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#1E293B',
+  },
+  addMemberRoleBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+  },
+  addMemberRoleBtnActive: {
+    borderColor: '#6366F1',
+    backgroundColor: '#EDE9FE',
+  },
+  addMemberRoleText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#94A3B8',
+  },
+  addMemberRoleTextActive: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#6366F1',
+  },
+  addMemberSubmitBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: '#6366F1',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addMemberSubmitText: {
+    color: '#FFFFFF',
+    fontSize: 18,
     fontWeight: '700',
   },
 });
