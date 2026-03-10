@@ -1,6 +1,5 @@
 import { getToken } from '@/services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
@@ -27,25 +26,21 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
     return null;
   }
 
-  // Get Expo push token
-  const projectId =
-    Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
-
-  if (!projectId) {
-    console.error('Project ID not found');
-    return null;
-  }
-
+  // Get native FCM token (bukan Expo Push Token)
   try {
-    const pushTokenString = (
-      await Notifications.getExpoPushTokenAsync({ projectId })
-    ).data;
+    console.log('🔄 Getting native FCM token...');
+    const deviceToken = await Notifications.getDevicePushTokenAsync();
+    const pushTokenString = deviceToken.data as string;
+    console.log('🔑 FCM token:', pushTokenString.substring(0, 20) + '...');
 
     const authToken = await getToken();
-    if (!authToken) return null;
+    if (!authToken) {
+      console.log('❌ No auth token, skip push register');
+      return null;
+    }
 
     // Kirim token ke backend
-    await fetch(`${API_URL}/push/register`, {
+    const response = await fetch(`${API_URL}/push/register`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${authToken}`,
@@ -54,11 +49,19 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
       body: JSON.stringify({ token: pushTokenString }),
     });
 
+    const resData = await response.json().catch(() => null);
+    console.log('📤 Push register response:', response.status, resData);
+
+    if (!response.ok) {
+      console.error('❌ Push register failed:', response.status, resData);
+      return null;
+    }
+
     await AsyncStorage.setItem(PUSH_TOKEN_KEY, pushTokenString);
-    console.log('✅ Push token registered:', pushTokenString);
+    console.log('✅ FCM token registered successfully');
     return pushTokenString;
   } catch (e) {
-    console.error('Failed to register push token:', e);
+    console.error('❌ Failed to register push token:', e);
     return null;
   }
 }
