@@ -5,17 +5,18 @@ import * as Clipboard from 'expo-clipboard';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Keyboard,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -135,9 +136,26 @@ export default function ChatDetailScreen() {
   const chatName = name || 'Chat';
   const isAdmin = user?.role === 'admin';
   const chatLocked = group ? isChatLocked(group.status) : false;
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const quickReplies =
     user?.role === 'admin' ? ADMIN_QUICK_REPLIES : CLIENT_QUICK_REPLIES;
+
+  // Keyboard listener untuk Android (edge-to-edge)
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+    });
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardHeight(0);
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   // Fetch group detail + messages
   useEffect(() => {
@@ -532,9 +550,9 @@ export default function ChatDetailScreen() {
 
       {/* Messages */}
       <KeyboardAvoidingView
-        style={styles.chatWrapper}
+        style={[styles.chatWrapper, Platform.OS === 'android' && keyboardHeight > 0 && { paddingBottom: keyboardHeight }]}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         <ScrollView
           ref={scrollRef}

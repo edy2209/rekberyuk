@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "174601210107",
+    "project_id": "rekberyuk-3dadb",
+    "storage_bucket": "rekberyuk-3dadb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:174601210107:android:7afc264bc2ddc1f8dd085e",
+        "android_client_info": {
+          "package_name": "com.edy2209.rekber"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC9Ue4FPn8y1l0Y8VnzI0cNIyLh-_RLDo4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

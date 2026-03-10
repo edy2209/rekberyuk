@@ -1,4 +1,5 @@
 import { authApi, getToken, removeToken, setToken } from '@/services/api';
+import { unregisterPushToken } from '@/utils/push-notifications';
 import React, { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
 export type UserRole = 'admin' | 'user';
@@ -83,6 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
+      await unregisterPushToken();
       await authApi.logout();
     } catch {
       // tetap logout meski API error
