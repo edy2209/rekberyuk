@@ -9,9 +9,9 @@ import { Platform } from 'react-native';
 import 'react-native-reanimated';
 
 import { AuthProvider, useAuth } from '@/contexts/auth-context';
-import { SocketProvider } from '@/contexts/socket-context';
+import { SocketProvider, useSocket } from '@/contexts/socket-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { registerForPushNotificationsAsync } from '@/utils/push-notifications';
+import { registerForPushNotificationsAsync, showLocalNotification } from '@/utils/push-notifications';
 import SplashScreen from './splash';
 
 // Notif handler: tampilkan notif saat app di foreground
@@ -23,6 +23,22 @@ Notifications.setNotificationHandler({
     shouldSetBadge: true,
   }),
 });
+
+// Setup Android notification channel dengan custom sound
+async function setupNotificationChannel() {
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('rekber-messages', {
+      name: 'Pesan RekberYuk',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      sound: 'notif.wav',
+      enableLights: true,
+      lightColor: '#6366F1',
+      enableVibrate: true,
+      showBadge: true,
+    });
+  }
+}
 
 function RootNavigator() {
   const colorScheme = useColorScheme();
@@ -37,7 +53,11 @@ function RootNavigator() {
     }
   }, []);
 
-  // Register push token saat user login
+  // Setup notification channel + register push token saat user login
+  useEffect(() => {
+    setupNotificationChannel();
+  }, []);
+
   useEffect(() => {
     if (user) {
       registerForPushNotificationsAsync();
@@ -73,6 +93,7 @@ function RootNavigator() {
 
   return (
     <SocketProvider isLoggedIn={!!user}>
+      <SocketNotificationListener />
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <Stack>
           <Stack.Screen name="login" options={{ headerShown: false }} />
@@ -89,6 +110,38 @@ function RootNavigator() {
       </ThemeProvider>
     </SocketProvider>
   );
+}
+
+// Komponen untuk listen socket notif → trigger local notification (seperti WA)
+function SocketNotificationListener() {
+  const socket = useSocket();
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleNewNotification = (data: {
+      title?: string;
+      message?: string;
+      type?: string;
+      groupId?: string;
+      groupName?: string;
+    }) => {
+      const title = data.title || 'RekberYuk';
+      const body = data.message || 'Kamu punya notifikasi baru';
+      showLocalNotification(title, body, {
+        type: data.type,
+        groupId: data.groupId,
+        groupName: data.groupName,
+      });
+    };
+
+    socket.on('new_notification', handleNewNotification);
+    return () => {
+      socket.off('new_notification', handleNewNotification);
+    };
+  }, [socket]);
+
+  return null;
 }
 
 export default function RootLayout() {

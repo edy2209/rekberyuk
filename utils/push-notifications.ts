@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
 
 const API_URL = 'https://berekberyuk.onrender.com/api';
 const PUSH_TOKEN_KEY = 'rekber_push_token';
@@ -83,4 +84,22 @@ export async function unregisterPushToken(): Promise<void> {
   } catch (e) {
     console.error('Failed to unregister push token:', e);
   }
+}
+
+// Trigger notifikasi lokal (untuk socket event saat app foreground)
+export async function showLocalNotification(
+  title: string,
+  body: string,
+  data?: Record<string, unknown>
+) {
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title,
+      body,
+      sound: Platform.OS === 'android' ? 'notif.wav' : true,
+      data: data || {},
+      ...(Platform.OS === 'android' && { channelId: 'rekber-messages' }),
+    },
+    trigger: null, // Langsung tampilkan
+  });
 }

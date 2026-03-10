@@ -5,18 +5,18 @@ import * as Clipboard from 'expo-clipboard';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Keyboard,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Keyboard,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -196,16 +196,31 @@ export default function ChatDetailScreen() {
     const handleStatusUpdate = (data: { groupId: string; status: string }) => {
       if (data.groupId === chatId) {
         setGroup((prev) => prev ? { ...prev, status: data.status } : prev);
+        // Kalau status jadi locked, dismiss keyboard & tutup quick reply
+        if (data.status === 'done' || data.status === 'cancelled') {
+          Keyboard.dismiss();
+          setShowQuickReplies(false);
+        }
+      }
+    };
+
+    // Realtime member update (kick/add member)
+    const handleMemberUpdate = (data: { groupId: string }) => {
+      if (data.groupId === chatId) {
+        // Re-fetch group detail untuk update member list
+        groupApi.detail(chatId).then((updated) => setGroup(updated)).catch(() => {});
       }
     };
 
     socket.on('new_message', handleNewMessage);
     socket.on('status_update', handleStatusUpdate);
+    socket.on('member_update', handleMemberUpdate);
 
     return () => {
       socket.emit('leave_group', chatId);
       socket.off('new_message', handleNewMessage);
       socket.off('status_update', handleStatusUpdate);
+      socket.off('member_update', handleMemberUpdate);
     };
   }, [socket, chatId]);
 
